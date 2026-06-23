@@ -1,0 +1,18 @@
+{
+  "identity": {
+    "assistant_name": {
+      "value": "Indra",
+      "updated": "2026-06-22"
+    }
+  },
+  "preferences": {
+    "language_preference": {
+      "value": "English",
+      "updated": "2026-06-22"
+    }
+  },
+  "projects": {},
+  "relationships": {},
+  "wishes": {},
+  "notes": {}
+}

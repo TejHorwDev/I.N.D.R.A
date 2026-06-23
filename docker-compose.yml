@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  jarvis:
+    build: .
+    container_name: jarvis-core
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    network_mode: "host"
+    restart: unless-stopped

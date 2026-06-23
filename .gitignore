@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+
+# PyInstaller compiled output (thousands of DLLs - too large for GitHub, rebuild from source)
+dist/
+build/
+*.exe
+INDRA.exe_extracted/
+
+# Flutter package cache (downloaded automatically by flutter pub get)
+.pub-cache/
+
+# OS
+*.DS_Store
+Thumbs.db

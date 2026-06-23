@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Particle Orb</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <canvas id="stars" aria-hidden="true"></canvas>
+
+  <main class="scene">
+    <div class="orb-halo" id="orbHalo" aria-hidden="true"></div>
+    <canvas id="orbCanvas" class="orb-canvas"></canvas>
+    <div class="fx-field" id="fxField" aria-hidden="true"></div>
+    <div id="aiStateText" style="position: absolute; bottom: 10%; color: rgba(214,205,235,0.9); font-family: monospace; font-size: 20px; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 10px rgba(196,186,224,0.55); pointer-events: none;">STARTING</div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

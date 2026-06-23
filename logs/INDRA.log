@@ -1,0 +1,44 @@
+2026-06-22 22:40:40 | INFO     | asyncio_2 | ▶ smart_type  {'text': "A mother's love is a boundless and unconditional force that shapes our lives from the very beginning. It is a constant source of comfort, strength, and inspiration, guiding us through challenges and celebrating our successes. The sacrifices a mother makes and the unwavering support she provides are truly invaluable, forming the foundation upon which we build our dreams and futures.", 'description': 'WordPad text area'}
+2026-06-22 22:40:40 | DEBUG    | asyncio_2 | Field cleared
+2026-06-22 22:40:41 | DEBUG    | asyncio_2 | Smart-typed: A mother's love is a boundless and unconditional force that …
+2026-06-22 22:40:41 | INFO     | asyncio_2 | ✓ smart_type (708 ms): Smart-typed: A mother's love is a boundless and unconditional force that …
+2026-06-22 22:42:15 | INFO     | asyncio_2 | ▶ smart_type  {'description': 'Notepad text area', 'text': "A father's presence is a pillar of strength and support, offering guidance and wisdom throughout life's journey. Fathers play a crucial role in shaping our values and providing a sense of security. Their dedication and hard work create a stable environment, and their encouragement empowers us to pursue our goals and become the best versions of ourselves."}
+2026-06-22 22:42:15 | DEBUG    | asyncio_2 | Field cleared
+2026-06-22 22:42:16 | DEBUG    | asyncio_2 | Smart-typed: A father's presence is a pillar of strength and support, off…
+2026-06-22 22:42:16 | INFO     | asyncio_2 | ✓ smart_type (709 ms): Smart-typed: A father's presence is a pillar of strength and support, off…
+2026-06-22 22:43:14 | INFO     | asyncio_0 | ▶ move  {'y': 500, 'x': 500}
+2026-06-22 22:43:18 | DEBUG    | asyncio_0 | Mouse → (500, 500)
+2026-06-22 22:43:18 | INFO     | asyncio_0 | ✓ move (3343 ms): Moved mouse → (500, 500)
+2026-06-22 22:43:25 | INFO     | asyncio_0 | ▶ move  {'y': 200, 'x': 200}
+2026-06-22 22:43:28 | DEBUG    | asyncio_0 | Mouse → (200, 200)
+2026-06-22 22:43:28 | INFO     | asyncio_0 | ✓ move (3336 ms): Moved mouse → (200, 200)
+2026-06-22 22:51:36 | INFO     | asyncio_1 | ▶ scroll  {'direction': 'down'}
+2026-06-22 22:51:36 | DEBUG    | asyncio_1 | Scroll down ×3
+2026-06-22 22:51:36 | INFO     | asyncio_1 | ✓ scroll (51 ms): Scrolled down ×3
+2026-06-22 22:56:57 | INFO     | asyncio_1 | ▶ screen_click  {'description': 'C drive'}
+2026-06-22 22:57:00 | ERROR    | asyncio_1 | screen_find failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-22 22:57:00 | ERROR    | asyncio_1 | ✗ screen_click (3762 ms): Element not found on screen: 'C drive'
+2026-06-22 22:57:16 | INFO     | asyncio_0 | ▶ screen_click  {'description': 'Local Disk C'}
+2026-06-22 22:57:20 | ERROR    | asyncio_0 | screen_find failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-22 22:57:20 | ERROR    | asyncio_0 | ✗ screen_click (4109 ms): Element not found on screen: 'Local Disk C'
+2026-06-22 22:58:14 | INFO     | asyncio_2 | ▶ screen_click  {'description': 'Downloads'}
+2026-06-22 22:58:20 | ERROR    | asyncio_2 | screen_find failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-06-22 22:58:20 | ERROR    | asyncio_2 | ✗ screen_click (5652 ms): Element not found on screen: 'Downloads'
+2026-06-22 22:58:47 | INFO     | asyncio_2 | ▶ move  {'y': 500, 'x': 500}
+2026-06-22 22:58:49 | DEBUG    | asyncio_2 | Mouse → (500, 500)
+2026-06-22 22:58:49 | INFO     | asyncio_2 | ✓ move (1830 ms): Moved mouse → (500, 500)
+2026-06-22 23:26:58 | INFO     | asyncio_0 | ▶ move  {'x': 460, 'y': 339}
+2026-06-22 23:27:00 | DEBUG    | asyncio_0 | Mouse → (460, 339)
+2026-06-22 23:27:00 | INFO     | asyncio_0 | ✓ move (1834 ms): Moved mouse → (460, 339)
+2026-06-22 23:27:11 | INFO     | asyncio_0 | ▶ move  {'x': 479, 'y': 341}
+2026-06-22 23:27:13 | DEBUG    | asyncio_0 | Mouse → (479, 341)
+2026-06-22 23:27:13 | INFO     | asyncio_0 | ✓ move (1832 ms): Moved mouse → (479, 341)
+2026-06-22 23:41:22 | INFO     | asyncio_1 | ▶ move  {'x': 955, 'y': 659}
+2026-06-22 23:41:24 | DEBUG    | asyncio_1 | Mouse → (955, 659)
+2026-06-22 23:41:24 | INFO     | asyncio_1 | ✓ move (1822 ms): Moved mouse → (955, 659)
+2026-06-22 23:41:33 | INFO     | asyncio_1 | ▶ move  {'x': 732, 'y': 713}
+2026-06-22 23:41:35 | DEBUG    | asyncio_1 | Mouse → (732, 713)
+2026-06-22 23:41:35 | INFO     | asyncio_1 | ✓ move (1822 ms): Moved mouse → (732, 713)
+2026-06-22 23:41:44 | INFO     | asyncio_1 | ▶ move  {'x': 739, 'y': 695}
+2026-06-22 23:41:46 | DEBUG    | asyncio_1 | Mouse → (739, 695)
+2026-06-22 23:41:46 | INFO     | asyncio_1 | ✓ move (1824 ms): Moved mouse → (739, 695)
