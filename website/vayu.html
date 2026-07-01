@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.A.Y.U - The Wind Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="split-page" style="--accent-color: var(--vayu-color);">
+    <div id="ui-background">
+        <canvas id="stars" aria-hidden="true"></canvas>
+        <main class="scene">
+            <div class="orb-halo" id="orbHalo" aria-hidden="true"></div>
+            <canvas id="orbCanvas" class="orb-canvas"></canvas>
+            <div class="fx-field" id="fxField" aria-hidden="true"></div>
+            <div id="aiStateText" style="display: none;"></div>
+        </main>
+    </div>
+
+    <nav class="navbar">
+        <a href="index.html" class="logo">I.N.D.R.A</a>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="agents.html" class="active">Agents</a>
+            <a href="giveaway.html">Giveaway</a>
+            <a href="download.html" class="btn-primary-sm">Download App</a>
+        </div>
+    </nav>
+
+    <!-- First screen is the split layout -->
+    <div class="split-layout">
+        <div class="content-side scroll-slide-left">
+            <h1 style="font-size: 4rem; color: var(--vayu-color); margin-bottom: 20px; letter-spacing: -2px;">V.A.Y.U</h1>
+            <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 30px;">The swift wind of communication. VAYU handles the bidirectional, ultra-fast PCM audio streams that allow you to talk to the AI naturally, like a human.</p>
+            <a href="#deep-features" class="btn-primary" style="padding: 12px 24px; background: linear-gradient(135deg, var(--vayu-color), #0f766e); box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3);">Explore Voice ↓</a>
+        </div>
+    </div>
+
+    <!-- Deep scroll section -->
+    <section id="deep-features" class="deep-content-section">
+        <h2 class="scroll-reveal" style="font-size: 3rem; text-align: center; margin-bottom: 20px;">Vocal Commands</h2>
+        <p class="scroll-reveal delay-100" style="text-align: center; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">VAYU's real-time WebRTC audio pipeline allows you to naturally speak to the AI and trigger web-based data fetching and messaging.</p>
+
+        <div class="feature-grid">
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> web_search</h4>
+                <p>Searches the web for any information. Connects to multiple search engines (Google, Bing, DuckDuckGo, Yandex) to provide real-time facts during conversation.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> flight_finder</h4>
+                <p>Searches Google Flights and speaks the best options. Retrieves real-time pricing, duration, and stop-over information directly via voice command.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> youtube_video</h4>
+                <p>Advanced YouTube integration. Can perform multiple actions: play, summarize, get_info, or fetch trending videos directly on your desktop.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> weather_report</h4>
+                <p>Gives the weather report to user by connecting to the OpenWeather API. Instantly fetches current conditions and forecasts for any location.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> send_message</h4>
+                <p>Sends a text message via WhatsApp, Telegram, or other messaging platform autonomously using voice dictation.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--vayu-color);">
+                <h4><span style="color: var(--vayu-color);">■</span> Simultaneous Duplex</h4>
+                <p>Interrupt the AI while it's speaking. Because VAYU uses WebRTC VAD, it instantly stops transmitting audio when it detects you speaking over it.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer style="margin-top: 100px; border-top: 1px solid var(--glass-border); padding: 40px; text-align: center;">
+        <p>&copy; 2026 INDRA Corp.</p>
+    </footer>
+
+    <script src="assets/script.js"></script>
+    <script src="scroll.js"></script>
+    <script src="cinematic.js"></script>
+    <script>
+        if (window.setTheme) { window.setTheme('vayu'); }
+        if (window.INDRAOrb) { window.INDRAOrb.setState('THINKING'); }
+    </script>
+</body>
+</html>

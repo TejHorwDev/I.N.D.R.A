@@ -1,10 +1,9 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 from __future__ import annotations
 
 from core.utils import STATS, Config, get_gemini_client, log, synchronized_ui
 
-#!/usr/bin/env python3
 """
 computer_control.py  ─  Peak-Performance Desktop Automation Module
 ═══════════════════════════════════════════════════════════════════
@@ -36,7 +35,6 @@ What changed internally (non-breaking):
   ▸ Per-action metrics     — wall-time, call counts, min/max/avg
 """
 
-
 import functools
 import hashlib
 import io
@@ -59,9 +57,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
-# ════════════════════════════════════════════════════════════════════
-#  OPTIONAL DEPENDENCY PROBING
-# ════════════════════════════════════════════════════════════════════
+                              
 
 
 def _probe(pkg: str) -> bool:
@@ -73,7 +69,6 @@ def _probe(pkg: str) -> bool:
     except ImportError:
         return False
 
-
 _PYAUTOGUI_OK = _probe("pyautogui")
 _PYPERCLIP_OK = _probe("pyperclip")
 _PIL_OK = _probe("PIL")
@@ -83,7 +78,7 @@ if _PYAUTOGUI_OK:
     import pyautogui
 
     pyautogui.FAILSAFE = True
-    pyautogui.PAUSE = 0.02  # minimal; we own all timing
+    pyautogui.PAUSE = 0.02                              
 
 if _PYPERCLIP_OK:
     import pyperclip
@@ -91,17 +86,14 @@ if _PYPERCLIP_OK:
 if _PIL_OK:
     from PIL import Image
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  PATHS
-# ════════════════════════════════════════════════════════════════════
 
 
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 _BASE = _base_dir()
 _CONFIG_PATH = _BASE / "config" / "api_keys.json"
@@ -114,15 +106,11 @@ _LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _SAFE_SCREENSHOT_ROOTS: Tuple[Path, ...] = (Path.home(),)
 
-
-# ════════════════════════════════════════════════════════════════════
-#  LOGGING
-# ════════════════════════════════════════════════════════════════════
+                                                                      
 
 
-# ════════════════════════════════════════════════════════════════════
-#  DATA CLASSES
-# ════════════════════════════════════════════════════════════════════
+
+               
 
 
 @dataclass
@@ -133,7 +121,6 @@ class RetryConfig:
     backoff: float = 2.0
     jitter: float = 0.1
 
-
 @dataclass
 class ActionResult:
     action: str
@@ -142,7 +129,6 @@ class ActionResult:
     elapsed: float
     attempt: int = 1
     error: str = ""
-
 
 @dataclass
 class _CacheEntry:
@@ -153,10 +139,8 @@ class _CacheEntry:
     def valid(self) -> bool:
         return (time.monotonic() - self.ts) < self.ttl
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  THREAD-SAFE TTL CACHE
-# ════════════════════════════════════════════════════════════════════
 
 
 class _Cache:
@@ -186,13 +170,10 @@ class _Cache:
         with self._lock:
             self._store.clear()
 
-
 _cache = _Cache()
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  PERFORMANCE METRICS
-# ════════════════════════════════════════════════════════════════════
 
 
 class _Metrics:
@@ -245,13 +226,10 @@ class _Metrics:
         except Exception:
             pass
 
-
 _metrics = _Metrics()
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  AUDIT TRAIL
-# ════════════════════════════════════════════════════════════════════
 
 
 def _audit(result: ActionResult, params: dict) -> None:
@@ -273,13 +251,10 @@ def _audit(result: ActionResult, params: dict) -> None:
     except Exception:
         pass
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  RETRY DECORATOR
-# ════════════════════════════════════════════════════════════════════
 
 _DEFAULT_RETRY = RetryConfig()
-
 
 def _with_retry(cfg: RetryConfig = _DEFAULT_RETRY) -> Callable:
     """Decorator factory — retry on any exception with exponential back-off."""
@@ -308,26 +283,23 @@ def _with_retry(cfg: RetryConfig = _DEFAULT_RETRY) -> Callable:
                     )
                     time.sleep(sleep)
                     delay = min(delay * cfg.backoff, cfg.max_delay)
-            raise last_exc  # type: ignore[misc]
+            raise last_exc                      
 
         return wrapper
 
     return decorator
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  CONFIGURATION  (thread-safe, TTL-cached)
-# ════════════════════════════════════════════════════════════════════
 
 _cfg_lock = threading.Lock()
-
 
 def _load_config() -> dict:
     cached = _cache.get("config")
     if cached is not None:
         return cached
     with _cfg_lock:
-        cached = _cache.get("config")  # double-check after lock
+        cached = _cache.get("config")                           
         if cached is not None:
             return cached
         try:
@@ -337,20 +309,16 @@ def _load_config() -> dict:
         _cache.set("config", data, ttl=60.0)
         return data
 
-
 def _platform_os() -> str:
     return {"Windows": "windows", "Darwin": "mac", "Linux": "linux"}.get(
         platform.system(), "linux"
     )
 
-
 def _get_os() -> str:
     return _load_config().get("os_system", _platform_os()).lower()
 
-
 def _get_api_key() -> str:
     return _load_config().get("gemini_api_key", "")
-
 
 def _get_screen_size() -> Tuple[int, int]:
     cached = _cache.get("screen_size")
@@ -363,13 +331,10 @@ def _get_screen_size() -> Tuple[int, int]:
         return result
     return 1920, 1080
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  USER MEMORY  (thread-safe, TTL-cached)
-# ════════════════════════════════════════════════════════════════════
 
 _mem_lock = threading.Lock()
-
 
 def _user_profile() -> dict:
     cached = _cache.get("user_profile")
@@ -390,14 +355,11 @@ def _user_profile() -> dict:
         _cache.set("user_profile", profile, ttl=120.0)
         return profile
 
-
 def _invalidate_user_profile() -> None:
     _cache.invalidate("user_profile")
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  DEPENDENCY GUARD + HEALTH CHECK
-# ════════════════════════════════════════════════════════════════════
 
 
 def _require_pyautogui() -> None:
@@ -408,7 +370,6 @@ def _require_pyautogui() -> None:
             "  Linux extra: sudo apt-get install python3-tk python3-dev scrot\n"
             "  macOS extra: grant Accessibility permission in System Preferences"
         )
-
 
 def _check_deps() -> Dict[str, bool]:
     return {
@@ -421,7 +382,6 @@ def _check_deps() -> Dict[str, bool]:
         "xclip": _cmd_exists("xclip"),
         "xsel": _cmd_exists("xsel"),
     }
-
 
 def _cmd_exists(cmd: str) -> bool:
     """Check if a CLI tool is on PATH."""
@@ -438,7 +398,6 @@ def _cmd_exists(cmd: str) -> bool:
     )
     _cache.set(cached_key, result, ttl=600.0)
     return result
-
 
 def _health_check() -> str:
     """Full system readiness report."""
@@ -459,10 +418,8 @@ def _health_check() -> str:
     lines.append(f"  Log dir:  {_LOG_DIR}")
     return "\n".join(lines)
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  PARAMETER VALIDATION
-# ════════════════════════════════════════════════════════════════════
 
 
 def _validate_coords(x: Any, y: Any, *, label: str = "coordinate") -> Tuple[int, int]:
@@ -474,7 +431,6 @@ def _validate_coords(x: Any, y: Any, *, label: str = "coordinate") -> Tuple[int,
     xi = max(0, min(xi, w - 1))
     yi = max(0, min(yi, h - 1))
     return xi, yi
-
 
 def _validate_str(
     val: Any,
@@ -492,7 +448,6 @@ def _validate_str(
         raise ValueError(f"'{name}' must not be blank")
     return s
 
-
 def _validate_float(
     val: Any,
     name: str,
@@ -508,7 +463,6 @@ def _validate_float(
     except (TypeError, ValueError) as e:
         raise ValueError(f"'{name}' must be a number, got {val!r}") from e
     return max(lo, min(f, hi))
-
 
 def _validate_int(
     val: Any,
@@ -526,10 +480,8 @@ def _validate_int(
         raise ValueError(f"'{name}' must be an integer, got {val!r}") from e
     return max(lo, min(i, hi))
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  SCREENSHOT PATH SAFETY
-# ════════════════════════════════════════════════════════════════════
 
 
 def _safe_screenshot_path(requested: str | None) -> Path:
@@ -547,10 +499,8 @@ def _safe_screenshot_path(requested: str | None) -> Path:
     log.warning("Unsafe screenshot path %r — using fallback", requested)
     return fallback
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  BÉZIER MOUSE MOVEMENT
-# ════════════════════════════════════════════════════════════════════
 
 
 def _bezier_points(
@@ -588,13 +538,10 @@ def _bezier_points(
         pts.append((round(x), round(y)))
     return pts
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  SYSTEM CALIBRATION
-# ════════════════════════════════════════════════════════════════════
 
-_TIMING_MULTIPLIER: float = 1.0  # global timing scale factor
-
+_TIMING_MULTIPLIER: float = 1.0                              
 
 def _calibrate() -> str:
     """
@@ -619,26 +566,23 @@ def _calibrate() -> str:
 
     avg_ms = (sum(samples) / len(samples)) * 1_000
     if avg_ms < 5:
-        _TIMING_MULTIPLIER = 0.8  # fast machine — tighter delays
+        _TIMING_MULTIPLIER = 0.8                                 
     elif avg_ms < 20:
-        _TIMING_MULTIPLIER = 1.0  # nominal
+        _TIMING_MULTIPLIER = 1.0           
     else:
-        _TIMING_MULTIPLIER = 1.4  # slow/VM — give more breathing room
+        _TIMING_MULTIPLIER = 1.4                                      
 
     log.info(
         "Calibration: avg move=%.1f ms → multiplier=%.1f", avg_ms, _TIMING_MULTIPLIER
     )
     return f"Calibrated: avg={avg_ms:.1f} ms, multiplier={_TIMING_MULTIPLIER:.1f}"
 
-
 def _t(base: float) -> float:
     """Return calibration-adjusted delay."""
     return base * _TIMING_MULTIPLIER
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  CORE ACTIONS — Mouse
-# ════════════════════════════════════════════════════════════════════
 
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.1))
@@ -667,7 +611,6 @@ def _move(
     log.debug("Mouse → (%d, %d)", x, y)
     return f"Moved mouse → ({x}, {y})"
 
-
 @_with_retry(RetryConfig(attempts=3, base_delay=0.15))
 def _click(
     x: int | None = None,
@@ -695,7 +638,6 @@ def _click(
     log.debug("%s %s [%s]", label, pos, button)
     return f"{'Double-c' if clicks == 2 else 'C'}licked {pos} [{button}]"
 
-
 @_with_retry(RetryConfig(attempts=2, base_delay=0.1))
 def _hover(x: int, y: int, duration: float = 0.5) -> str:
     _require_pyautogui()
@@ -704,7 +646,6 @@ def _hover(x: int, y: int, duration: float = 0.5) -> str:
     time.sleep(_t(0.1))
     log.debug("Hover @ (%d, %d)", x, y)
     return f"Hovered at ({x}, {y})"
-
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.15))
 def _drag(
@@ -735,7 +676,6 @@ def _drag(
     log.debug("Drag (%d,%d) → (%d,%d)", x1, y1, x2, y2)
     return f"Dragged ({x1},{y1}) → ({x2},{y2})"
 
-
 @_with_retry(RetryConfig(attempts=2, base_delay=0.1))
 def _scroll(direction: str = "down", amount: int = 3) -> str:
     _require_pyautogui()
@@ -752,22 +692,18 @@ def _scroll(direction: str = "down", amount: int = 3) -> str:
     log.debug("Scroll %s ×%d", direction, amount)
     return f"Scrolled {direction} ×{amount}"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  CORE ACTIONS — Keyboard
-# ════════════════════════════════════════════════════════════════════
 
-# Characters that pyautogui.typewrite() can handle safely
+                                                         
 _TYPEWRITE_SAFE = frozenset(
     string.ascii_letters + string.digits + string.punctuation + " \t"
 )
 
-
 def _can_typewrite(text: str) -> bool:
     return all(c in _TYPEWRITE_SAFE for c in text)
 
-
-# Alias map for common key names
+                                
 _KEY_ALIASES: Dict[str, str] = {
     "enter": "enter",
     "return": "enter",
@@ -801,10 +737,8 @@ _KEY_ALIASES: Dict[str, str] = {
     "f12": "f12",
 }
 
-
 def _resolve_key(key: str) -> str:
     return _KEY_ALIASES.get(key.lower(), key.lower())
-
 
 def _os_clipboard_set(text: str) -> bool:
     """Platform-native clipboard write — fallback when pyperclip absent."""
@@ -844,7 +778,6 @@ def _os_clipboard_set(text: str) -> bool:
         log.warning("OS clipboard write failed: %s", e)
     return False
 
-
 def _os_clipboard_get() -> str:
     """Platform-native clipboard read — fallback when pyperclip absent."""
     os_name = _get_os()
@@ -874,10 +807,8 @@ def _os_clipboard_get() -> str:
         log.warning("OS clipboard read failed: %s", e)
     return ""
 
-
 def _paste_key() -> str:
     return "command" if _get_os() == "mac" else "ctrl"
-
 
 def _type_via_clipboard(text: str) -> None:
     """Paste text from clipboard — handles all Unicode, faster for long strings."""
@@ -889,7 +820,6 @@ def _type_via_clipboard(text: str) -> None:
     pyautogui.hotkey(_paste_key(), "v")
     time.sleep(_t(0.07))
 
-
 def _type_chars_variable(text: str, base_interval: float) -> None:
     """
     Character-by-character with variable speed and unicode fallback.
@@ -899,7 +829,7 @@ def _type_chars_variable(text: str, base_interval: float) -> None:
     while i < len(text):
         ch = text[i]
         if ch in _TYPEWRITE_SAFE:
-            # collect contiguous safe run
+                                         
             j = i + 1
             while j < len(text) and text[j] in _TYPEWRITE_SAFE:
                 j += 1
@@ -908,13 +838,12 @@ def _type_chars_variable(text: str, base_interval: float) -> None:
             pyautogui.typewrite(chunk, interval=max(0.01, interval))
             i = j
         else:
-            # single unicode character via clipboard
+                                                    
             if _PYPERCLIP_OK:
                 pyperclip.copy(ch)
                 pyautogui.hotkey(_paste_key(), "v")
                 time.sleep(_t(0.05))
             i += 1
-
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.2))
 def _type(text: str, interval: float = 0.03) -> str:
@@ -930,7 +859,6 @@ def _type(text: str, interval: float = 0.03) -> str:
     log.debug("Typed: %s", snippet)
     return f"Typed: {snippet}"
 
-
 def _clear_field() -> str:
     _require_pyautogui()
     sel_key = "command" if _get_os() == "mac" else "ctrl"
@@ -941,7 +869,6 @@ def _clear_field() -> str:
     log.debug("Field cleared")
     return "Field cleared"
 
-
 @_with_retry(RetryConfig(attempts=2, base_delay=0.2))
 def _smart_type(text: str, clear_first: bool = True) -> str:
     _require_pyautogui()
@@ -949,7 +876,7 @@ def _smart_type(text: str, clear_first: bool = True) -> str:
     if clear_first:
         _clear_field()
         time.sleep(_t(0.12))
-    # Always use clipboard path: faster and unicode-safe
+                                                        
     if len(text) > 15 or not _can_typewrite(text):
         _type_via_clipboard(text)
     else:
@@ -957,7 +884,6 @@ def _smart_type(text: str, clear_first: bool = True) -> str:
     snippet = text[:60] + ("…" if len(text) > 60 else "")
     log.debug("Smart-typed: %s", snippet)
     return f"Smart-typed: {snippet}"
-
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.1))
 def _hotkey(*keys: str) -> str:
@@ -970,7 +896,6 @@ def _hotkey(*keys: str) -> str:
     log.debug("Hotkey: %s", combo)
     return f"Hotkey: {combo}"
 
-
 @_with_retry(RetryConfig(attempts=2, base_delay=0.1))
 def _press(key: str) -> str:
     _require_pyautogui()
@@ -980,17 +905,14 @@ def _press(key: str) -> str:
     log.debug("Pressed: %s", resolved)
     return f"Pressed: {key}"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  CLIPBOARD ACTIONS
-# ════════════════════════════════════════════════════════════════════
 
 
 def _clipboard_get() -> str:
     if _PYPERCLIP_OK:
         return pyperclip.paste()
     return _os_clipboard_get()
-
 
 def _clipboard_paste(text: str) -> str:
     text = _validate_str(text, "text")
@@ -1007,10 +929,8 @@ def _clipboard_paste(text: str) -> str:
         return f"Pasted: {snippet}"
     return "Clipboard paste failed — no pyperclip and OS fallback unavailable"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  SCREENSHOT
-# ════════════════════════════════════════════════════════════════════
 
 
 @_with_retry(RetryConfig(attempts=3, base_delay=0.3))
@@ -1022,7 +942,6 @@ def _screenshot(save_path: str | None = None) -> str:
     kb = path.stat().st_size // 1024
     log.info("Screenshot saved: %s (%d KB)", path, kb)
     return f"Screenshot saved: {path} ({kb} KB)"
-
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.3))
 def _screenshot_region(
@@ -1043,10 +962,8 @@ def _screenshot_region(
     log.info("Region screenshot saved: %s (%d KB)", path, kb)
     return f"Region screenshot saved: {path} ({kb} KB)"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  WINDOW FOCUS
-# ════════════════════════════════════════════════════════════════════
 
 
 def _verify_focus(title: str, *, timeout: float = 1.0) -> bool:
@@ -1096,7 +1013,6 @@ def _verify_focus(title: str, *, timeout: float = 1.0) -> bool:
         time.sleep(0.1)
     return False
 
-
 def _focus_window(title: str) -> str:
     title = _validate_str(title, "title", allow_empty=False)
     os_name = _get_os()
@@ -1116,7 +1032,7 @@ def _focus_window(title: str) -> str:
             return f"focus_window (Windows) failed: {e}"
 
     if os_name == "mac":
-        # Try direct app name first, then System Events process lookup
+                                                                      
         for script in (
             f'tell application "{title}" to activate',
             (
@@ -1166,13 +1082,10 @@ def _focus_window(title: str) -> str:
 
     return f"focus_window: unsupported OS '{os_name}'"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  AI SCREEN FINDER  (Gemini Vision)
-# ════════════════════════════════════════════════════════════════════
 
-_SCREEN_FIND_TTL: float = 4.0  # cache hit valid for 4 s
-
+_SCREEN_FIND_TTL: float = 4.0                           
 
 @_with_retry(RetryConfig(attempts=2, base_delay=0.5))
 def _screen_find(description: str) -> Tuple[int, int] | None:
@@ -1243,7 +1156,6 @@ def _screen_find(description: str) -> Tuple[int, int] | None:
 
     return None
 
-
 def _screen_find_any(descriptions: List[str]) -> Tuple[int, int] | None:
     """
     Try multiple descriptions in order, return first match.
@@ -1256,10 +1168,8 @@ def _screen_find_any(descriptions: List[str]) -> Tuple[int, int] | None:
             return coords
     return None
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  COMPOSITE ACTIONS
-# ════════════════════════════════════════════════════════════════════
 
 
 def _type_in_field(
@@ -1274,7 +1184,6 @@ def _type_in_field(
         time.sleep(_t(0.15))
     return _smart_type(text, clear_first=clear_first)
 
-
 def _screen_type(description: str, text: str, clear_first: bool = True) -> str:
     """
     AI-find an element, click it, then type.
@@ -1286,7 +1195,6 @@ def _screen_type(description: str, text: str, clear_first: bool = True) -> str:
     _click(coords[0], coords[1])
     time.sleep(_t(0.2))
     return _smart_type(text, clear_first=clear_first)
-
 
 def _action_chain(actions: List[dict]) -> str:
     """
@@ -1302,16 +1210,14 @@ def _action_chain(actions: List[dict]) -> str:
         action = params.get("action", "")
         out = computer_control(params)
         results.append(f"[{i}] {action}: {out[:100]}")
-        # honour inter-step delay if specified
+                                              
         delay = float(params.get("chain_delay", 0.0))
         if delay > 0:
             time.sleep(delay)
     return "\n".join(results)
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  WAIT
-# ════════════════════════════════════════════════════════════════════
 
 
 def _wait(seconds: float = 1.0) -> str:
@@ -1320,10 +1226,8 @@ def _wait(seconds: float = 1.0) -> str:
     log.debug("Waited %.2fs", seconds)
     return f"Waited {seconds:.2f}s"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  RANDOM DATA GENERATOR  (25+ types, session-consistent identity)
-# ════════════════════════════════════════════════════════════════════
 
 _FIRST_NAMES = [
     "Alex",
@@ -1514,10 +1418,8 @@ _HOBBIES = [
     "yoga",
 ]
 
-# Per-session identity pool — consistent values within a single session
 _session_identity: Dict[str, str] = {}
 _identity_lock = threading.Lock()
-
 
 def _session_value(key: str, generator: Callable[[], str]) -> str:
     """Return a cached session value, generating it once if missing."""
@@ -1526,13 +1428,11 @@ def _session_value(key: str, generator: Callable[[], str]) -> str:
             _session_identity[key] = generator()
         return _session_identity[key]
 
-
 def _reset_session_identity() -> None:
     """Clear session identity pool — call before starting a new form fill."""
     with _identity_lock:
         _session_identity.clear()
     log.info("Session identity pool cleared")
-
 
 def _luhn_complete(partial: str) -> str:
     """Append Luhn checksum digit to a partial card number."""
@@ -1547,8 +1447,7 @@ def _luhn_complete(partial: str) -> str:
     check = (10 - (total % 10)) % 10
     return partial + str(check)
 
-
-def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intentional)
+def _random_data(data_type: str) -> str:                                           
     """
     Generate realistic fake data for the given type.
     Values are consistent within a session (same name / email everywhere).
@@ -1563,7 +1462,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
     """
     dt = data_type.lower().strip()
 
-    # ── Name fields ──────────────────────────────────────────────
     if dt == "first_name":
         return _session_value("first_name", lambda: random.choice(_FIRST_NAMES))
 
@@ -1575,7 +1473,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
         ln = _session_value("last_name", lambda: random.choice(_LAST_NAMES))
         return f"{fn} {ln}"
 
-    # ── Contact fields ───────────────────────────────────────────
     if dt == "email":
         fn = _session_value("first_name", lambda: random.choice(_FIRST_NAMES)).lower()
         ln = _session_value("last_name", lambda: random.choice(_LAST_NAMES)).lower()
@@ -1613,7 +1510,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
 
         return _session_value("phone", _gen_phone)
 
-    # ── Date fields ──────────────────────────────────────────────
     if dt in ("birthday", "dob", "date_of_birth"):
 
         def _gen_dob() -> str:
@@ -1632,7 +1528,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
         except Exception:
             return str(random.randint(22, 45))
 
-    # ── Address fields ───────────────────────────────────────────
     if dt == "address":
         num = _session_value("addr_num", lambda: str(random.randint(100, 9999)))
         street = _session_value("addr_street", lambda: random.choice(_STREETS))
@@ -1651,7 +1546,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
     if dt == "country":
         return _session_value("country", lambda: random.choice(_COUNTRIES))
 
-    # ── Professional fields ──────────────────────────────────────
     if dt == "company":
         return _session_value("company", lambda: random.choice(_COMPANIES))
 
@@ -1663,7 +1557,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
             "gender", lambda: random.choice(["Male", "Female", "Non-binary"])
         )
 
-    # ── Payment fields ───────────────────────────────────────────
     if dt in ("card_number", "credit_card"):
 
         def _gen_card() -> str:
@@ -1688,7 +1581,6 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
 
         return _session_value("expiry", _gen_expiry)
 
-    # ── Internet / identity fields ───────────────────────────────
     if dt in ("url", "website"):
         fn = _session_value("first_name", lambda: random.choice(_FIRST_NAMES)).lower()
         ln = _session_value("last_name", lambda: random.choice(_LAST_NAMES)).lower()
@@ -1770,10 +1662,8 @@ def _random_data(data_type: str) -> str:  # noqa: C901  (complexity is intention
     )
     return f"random_{data_type}_{random.randint(1000, 9999)}"
 
+                                                                      
 
-# ════════════════════════════════════════════════════════════════════
-#  MAIN DISPATCHER
-# ════════════════════════════════════════════════════════════════════
 
 
 def computer_control(
@@ -1884,7 +1774,7 @@ def computer_control(
     success = True
 
     try:
-        # ── Mouse ──────────────────────────────────────────────
+                                                                 
         if action in ("click", "left_click"):
             output = _click(
                 params.get("x"),
@@ -1933,7 +1823,6 @@ def computer_control(
                 amount=int(params.get("amount", 3)),
             )
 
-        # ── Keyboard ───────────────────────────────────────────
         elif action == "type":
             output = _type(
                 params.get("text", ""),
@@ -1961,14 +1850,12 @@ def computer_control(
         elif action == "clear_field":
             output = _clear_field()
 
-        # ── Clipboard ──────────────────────────────────────────
         elif action == "copy":
             output = _clipboard_get()
 
         elif action == "paste":
             output = _clipboard_paste(params.get("text", ""))
 
-        # ── Screen ─────────────────────────────────────────────
         elif action == "screenshot":
             output = _screenshot(params.get("path"))
 
@@ -1981,14 +1868,12 @@ def computer_control(
                 params.get("path"),
             )
 
-        # ── System ─────────────────────────────────────────────
         elif action == "wait":
             output = _wait(float(params.get("seconds", 1.0)))
 
         elif action == "focus_window":
             output = _focus_window(str(params.get("title", "")))
 
-        # ── AI Vision ──────────────────────────────────────────
         elif action == "screen_find":
             coords = _screen_find(str(params.get("description", "")))
             output = f"{coords[0]},{coords[1]}" if coords else "NOT_FOUND"
@@ -2011,7 +1896,6 @@ def computer_control(
                 clear_first=bool(params.get("clear_first", True)),
             )
 
-        # ── Composite ──────────────────────────────────────────
         elif action == "type_in_field":
             output = _type_in_field(
                 params.get("x"),
@@ -2026,7 +1910,6 @@ def computer_control(
                 raise ValueError("'actions' must be a list of parameter dicts")
             output = _action_chain(chain)
 
-        # ── Data ───────────────────────────────────────────────
         elif action == "random_data":
             if params.get("reset_identity"):
                 _reset_session_identity()
@@ -2044,7 +1927,6 @@ def computer_control(
                 log.warning("No '%s' in memory, using random: %s", field, value)
             output = value
 
-        # ── Meta ───────────────────────────────────────────────
         elif action == "health_check":
             output = _health_check()
 

@@ -10,7 +10,7 @@ def network_scanner(parameters: dict, player=None) -> str:
     
     if action == "arp":
         try:
-            # Use arp -a to get local network devices
+                                                     
             result = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=10)
             return result.stdout.strip() or "No ARP entries found."
         except Exception as e:
@@ -19,7 +19,7 @@ def network_scanner(parameters: dict, player=None) -> str:
     elif action == "ping_sweep":
         base_ip = parameters.get("base_ip", "192.168.1").strip()
         found = []
-        # Ping a small subnet quickly to find hosts
+                                                   
         try:
             for i in range(1, 255):
                 ip = f"{base_ip}.{i}"

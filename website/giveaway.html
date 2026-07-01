@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INDRA Giveaway</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <script>window.PARTICLE_MODE = 'mixed';</script>
+
+    <nav class="navbar">
+        <a href="index.html" class="logo">I.N.D.R.A</a>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="agents.html">Agents</a>
+            <a href="giveaway.html" class="active">Giveaway</a>
+            <a href="download.html" class="btn-primary-sm">Download App</a>
+        </div>
+    </nav>
+
+    <header class="hero parallax tilt-card neon-glow" data-speed="0.8" style="min-height: 40vh; --accent-color: #a855f7;">
+        <div class="cinematic-bg"></div>
+        <div class="hero-content animate-up">
+            <h1 class="cinematic-title glitch" data-text="FREE KEYS">FREE KEYS</h1>
+            <p class="subtitle" style="text-shadow: 0 0 20px rgba(168, 85, 247, 0.5);">Grab your exclusive 20 free licenses before they run out.</p>
+        </div>
+    </header>
+
+    <div class="premium-panel tilt-card neon-glow" style="--accent-color: rgba(244, 63, 94, 0.4);">
+        <div class="premium-panel-header">
+            <h2 style="color: #f43f5e;">License Generator</h2>
+            <p>Cryptographically secure offline activation key issuance.</p>
+        </div>
+
+        <div class="status-dashboard">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span style="color: #10b981;">Generator Online</span>
+            </div>
+            
+            <div class="key-display-box">
+                <div id="key-display">XXXX-XXXX-XXXX-XXXX</div>
+            </div>
+
+            <div style="text-align: center;">
+                <button id="generate-btn" class="btn-premium-action" style="--accent-color: #f43f5e; background: linear-gradient(135deg, #f43f5e, #be123c);">Execute Generation</button>
+            </div>
+            
+            <div class="metadata-text">
+                <span>Encryption: RSA-4096</span>
+                <span>|</span>
+                <span>Keys Remaining: <span id="keys-left" style="color: #f43f5e; font-weight: bold; margin-left: 2px;">20</span></span>
+            </div>
+        </div>
+
+        <div id="exhausted-msg" style="display: none; text-align: center;">
+            <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 12px; padding: 30px;">
+                <h3 style="color: #f43f5e; margin-bottom: 10px; font-size: 1.5rem;">Allocation Exhausted</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">The free license allocation has been depleted. Please proceed to official channels for premium acquisition.</p>
+                <a href="#" class="btn-secondary">Contact Sales</a>
+            </div>
+        </div>
+    </div>
+    
+
+
+    <footer style="border-top: 1px solid var(--glass-border); padding: 40px; text-align: center;">
+        <p>&copy; 2026 INDRA Corp.</p>
+    </footer>
+
+    <script src="particles.js"></script>
+    <script src="scroll.js"></script>
+    <script src="cinematic.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

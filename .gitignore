@@ -1,20 +1,32 @@
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.coverage
-
-# PyInstaller compiled output (thousands of DLLs - too large for GitHub, rebuild from source)
-dist/
+# Ignore build and distribution directories
+build_dist/
 build/
+dist/
+*.spec
+
+# Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Ignore virtual environments
+venv/
+env/
+.env/
+
+# Ignore compiled binaries and large files
+*.dll
 *.exe
-INDRA.exe_extracted/
+*.so
+*.dylib
+*.pak
+*.bin
 
-# Flutter package cache (downloaded automatically by flutter pub get)
-.pub-cache/
+# Ignore log files
+*.log
 
-# OS
-*.DS_Store
-Thumbs.db
+# Ignore IDE config files
+.vscode/
+.idea/
+scratch/

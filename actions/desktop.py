@@ -1,6 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
-# desktop.py
+                     
+
 import json
 import os
 import platform
@@ -18,20 +17,17 @@ try:
 except ImportError:
     _PYAUTOGUI = False
 
-_OS = platform.system()  # "Windows" | "Darwin" | "Linux"
-
+_OS = platform.system()                                  
 
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
-
 def _get_api_key() -> str:
     path = _get_base_dir() / "config" / "api_keys.json"
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
-
 
 def _get_desktop() -> Path:
     if _OS == "Linux":
@@ -39,7 +35,6 @@ def _get_desktop() -> Path:
         if xdg and Path(xdg).exists():
             return Path(xdg)
     return Path.home() / "Desktop"
-
 
 def _build_sandbox() -> dict:
     import time
@@ -98,7 +93,7 @@ def _build_sandbox() -> dict:
                 "winreg",
                 (),
                 {
-                    # Sadece okuma
+                                  
                     "OpenKey": winreg.OpenKey,
                     "QueryValueEx": winreg.QueryValueEx,
                     "HKEY_CURRENT_USER": winreg.HKEY_CURRENT_USER,
@@ -109,12 +104,10 @@ def _build_sandbox() -> dict:
 
     return sandbox
 
-
 def _execute_generated_code(code: str, player=None) -> str:
     if not code or code.strip() == "UNSAFE":
         return "This action cannot be performed safely."
 
-    # Kod temizleme
     if code.startswith("```"):
         lines = code.split("\n")
         code = "\n".join(lines[1:-1]).strip()
@@ -131,7 +124,6 @@ def _execute_generated_code(code: str, player=None) -> str:
     except Exception as e:
         print(f"[Desktop] Exec error: {e}\nCode:\n{code[:300]}")
         return f"Execution error: {e}"
-
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
 
@@ -187,7 +179,6 @@ Task: {task}"""
         return code
     except Exception as e:
         return f"ERROR: {e}"
-
 
 def set_wallpaper(image_path: str) -> str:
     path = Path(image_path).expanduser().resolve()
@@ -247,7 +238,7 @@ def set_wallpaper(image_path: str) -> str:
                 )
 
             elif "kde" in desktop_env:
-                # KDE Plasma
+                            
                 script = f"""
 var allDesktops = desktops();
 for (var i = 0; i < allDesktops.length; i++) {{
@@ -297,7 +288,6 @@ for (var i = 0; i < allDesktops.length; i++) {{
     except Exception as e:
         return f"Could not set wallpaper: {e}"
 
-
 def set_wallpaper_from_url(url: str) -> str:
     try:
         import urllib.request
@@ -313,7 +303,6 @@ def set_wallpaper_from_url(url: str) -> str:
         return result
     except Exception as e:
         return f"Could not download wallpaper: {e}"
-
 
 def get_current_wallpaper() -> str:
     try:
@@ -347,7 +336,6 @@ def get_current_wallpaper() -> str:
 
     except Exception as e:
         return f"Could not get wallpaper: {e}"
-
 
 FILE_TYPE_MAP = {
     "Images": {
@@ -403,7 +391,6 @@ _SKIP_EXTENSIONS = {
     "Linux": {".desktop"},
 }
 
-
 def organize_desktop(mode: str = "by_type") -> str:
     desktop = _get_desktop()
     skip_exts = _SKIP_EXTENSIONS.get(_OS, set())
@@ -446,7 +433,6 @@ def organize_desktop(mode: str = "by_type") -> str:
         result += f"\n{len(skipped)} file(s) skipped (name conflict)."
     return result
 
-
 def list_desktop() -> str:
     desktop = _get_desktop()
     items = []
@@ -472,7 +458,6 @@ def list_desktop() -> str:
         return "Desktop is empty."
     return f"Desktop ({len(items)} items):\n" + "\n".join(items)
 
-
 def clean_desktop() -> str:
     desktop = _get_desktop()
     skip_exts = _SKIP_EXTENSIONS.get(_OS, set())
@@ -493,7 +478,6 @@ def clean_desktop() -> str:
 
     return f"Desktop cleaned: {moved} files archived to '{archive_dir.name}'."
 
-
 def get_desktop_stats() -> str:
     desktop = _get_desktop()
     files = [i for i in desktop.iterdir() if i.is_file()]
@@ -511,7 +495,6 @@ def get_desktop_stats() -> str:
         f"  Size    : {size_str}\n"
         f"  Path    : {desktop}"
     )
-
 
 def desktop_control(
     parameters: dict = None,

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.G.N.I - The Vision Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="split-page" style="--accent-color: var(--agni-color);">
+    <div id="ui-background">
+        <canvas id="stars" aria-hidden="true"></canvas>
+        <main class="scene">
+            <div class="orb-halo" id="orbHalo" aria-hidden="true"></div>
+            <canvas id="orbCanvas" class="orb-canvas"></canvas>
+            <div class="fx-field" id="fxField" aria-hidden="true"></div>
+            <div id="aiStateText" style="display: none;"></div>
+        </main>
+    </div>
+
+    <nav class="navbar">
+        <a href="index.html" class="logo">I.N.D.R.A</a>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="agents.html" class="active">Agents</a>
+            <a href="giveaway.html">Giveaway</a>
+            <a href="download.html" class="btn-primary-sm">Download App</a>
+        </div>
+    </nav>
+
+    <!-- First screen is the split layout -->
+    <div class="split-layout">
+        <div class="content-side scroll-slide-left">
+            <h1 style="font-size: 4rem; color: var(--agni-color); margin-bottom: 20px; letter-spacing: -2px;">A.G.N.I</h1>
+            <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 30px;">The relentless fire of perception. AGNI is an ultra-fast, multithreaded computer vision pipeline built for gaming and high-speed visual processing.</p>
+            <a href="#deep-features" class="btn-primary" style="padding: 12px 24px; background: linear-gradient(135deg, var(--agni-color), #b91c1c); box-shadow: 0 10px 30px rgba(249, 115, 22, 0.3);">Discover Vision ↓</a>
+        </div>
+    </div>
+
+    <!-- Deep scroll section -->
+    <section id="deep-features" class="deep-content-section">
+        <h2 class="scroll-reveal" style="font-size: 3rem; text-align: center; margin-bottom: 20px;">Absolute Perception</h2>
+        <p class="scroll-reveal delay-100" style="text-align: center; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">AGNI's architecture ensures INDRA doesn't just read text—it truly sees your world. Designed explicitly for gamers and creators.</p>
+
+        <div class="feature-grid">
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> screen_process</h4>
+                <p>Captures real-time visual input. Configurable to use 'screen' to capture display across multiple monitors, or 'camera' for the system default webcam.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> game_scanner</h4>
+                <p>Scans the system for installed games via Registry and common game directories (Steam, Epic Games, Xbox Game Pass, Riot Games) to populate the Game Library float widget.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> window_controller</h4>
+                <p>Manages active application windows on the desktop. Used to seamlessly switch contexts and organize the visual workspace based on user requests.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> game_updater</h4>
+                <p>Automated tool to check and initiate background updates for the games detected by the game_scanner, ensuring the library is always ready to play.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> OpenCV Compression</h4>
+                <p>Raw 4K frames are instantly compressed and scaled using OpenCV to eliminate bandwidth bottlenecks during transmission to the vision model.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--agni-color);">
+                <h4><span style="color: var(--agni-color);">■</span> Bounding Box Generation</h4>
+                <p>AGNI processes the screen in real-time, instantly drawing mathematical coordinate bounding boxes around UI elements so INDRA knows exactly where to click.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer style="margin-top: 100px; border-top: 1px solid var(--glass-border); padding: 40px; text-align: center;">
+        <p>&copy; 2026 INDRA Corp.</p>
+    </footer>
+
+    <script src="assets/script.js"></script>
+    <script src="scroll.js"></script>
+    <script src="cinematic.js"></script>
+    <script>
+        if (window.setTheme) { window.setTheme('agni'); }
+        if (window.INDRAOrb) { window.INDRAOrb.setState('THINKING'); }
+    </script>
+</body>
+</html>

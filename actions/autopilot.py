@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 AutoPilot — Visual Autonomous Desktop Agent
 ============================================
@@ -46,18 +46,15 @@ import pyautogui
 from google import genai
 from PIL import Image, ImageDraw
 
-# ---------------------------------------------------------------------------
-# Global pyautogui safety configuration
-# ---------------------------------------------------------------------------
-# FAILSAFE lets a human abort instantly by slamming the mouse into a screen
-# corner. PAUSE adds a tiny delay after every pyautogui call so rapid-fire
-# actions don't get dropped by slower UIs.
+                                       
+
+                                                                          
+                                          
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.05
 
-# ---------------------------------------------------------------------------
-# Module-level logger (in addition to the caller-supplied callbacks)
-# ---------------------------------------------------------------------------
+                                                                    
+                                                                             
 logger = logging.getLogger("autopilot")
 if not logger.handlers:
     _handler = logging.StreamHandler()
@@ -67,17 +64,15 @@ if not logger.handlers:
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 
+                                                                             
 
-# ===========================================================================
-# Constants
-# ===========================================================================
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_MAX_STEPS = 25
 DEFAULT_MAX_API_RETRIES = 3
 DEFAULT_API_RETRY_BACKOFF_SECONDS = 1.5
 DEFAULT_ACTION_SETTLE_SECONDS = 1.0
-DEFAULT_MAX_IMAGE_DIMENSION = 1568  # Gemini handles this efficiently without losing UI detail.
+DEFAULT_MAX_IMAGE_DIMENSION = 1568                                                             
 DEFAULT_HISTORY_WINDOW = 6
 DEFAULT_STUCK_REPEAT_THRESHOLD = 3
 DEFAULT_TYPE_INTERVAL_SECONDS = 0.02
@@ -98,30 +93,23 @@ VALID_ACTIONS = {
     "fail",
 }
 
+                                                                             
 
-# ===========================================================================
-# Exceptions
-# ===========================================================================
 
 class AutoPilotError(Exception):
     """Base class for all autopilot-specific errors."""
 
-
 class ScreenCaptureError(AutoPilotError):
     """Raised when the screen cannot be captured."""
-
 
 class ModelResponseError(AutoPilotError):
     """Raised when the vision model's response cannot be used."""
 
-
 class ActionExecutionError(AutoPilotError):
     """Raised when a parsed action cannot be safely executed."""
 
+                                                                             
 
-# ===========================================================================
-# Configuration
-# ===========================================================================
 
 @dataclass
 class AutoPilotConfig:
@@ -138,7 +126,7 @@ class AutoPilotConfig:
     type_interval_seconds: float = DEFAULT_TYPE_INTERVAL_SECONDS
     move_duration_seconds: float = DEFAULT_MOVE_DURATION_SECONDS
     verify_with_diff: bool = True
-    monitor_index: Optional[int] = None  # None => auto-pick (prefers monitor 1 if multiple)
+    monitor_index: Optional[int] = None                                                     
 
     @classmethod
     def from_parameters(cls, parameters: Dict[str, Any]) -> "AutoPilotConfig":
@@ -152,10 +140,8 @@ class AutoPilotConfig:
                     setattr(cfg, key, parameters[key])
         return cfg
 
+                                                                             
 
-# ===========================================================================
-# Step / Memory bookkeeping
-# ===========================================================================
 
 @dataclass
 class StepRecord:
@@ -183,7 +169,6 @@ class StepRecord:
         if self.screen_changed is False:
             changed = " [screen did not visibly change after this]"
         return f"Step {self.step_index}: {self.action} -> {status}{changed}. Reason given: {self.reason}"
-
 
 class ActionMemory:
     """Rolling history of executed steps plus stuck-loop detection."""
@@ -216,10 +201,8 @@ class ActionMemory:
             return "(no actions taken yet)"
         return "\n".join(r.to_prompt_line() for r in recent)
 
+                                                                             
 
-# ===========================================================================
-# API key loading (kept intact — original core behavior)
-# ===========================================================================
 
 def _get_api_key() -> str:
     from pathlib import Path
@@ -234,10 +217,8 @@ def _get_api_key() -> str:
     except Exception:
         return ""
 
+                                                                             
 
-# ===========================================================================
-# Screen capture
-# ===========================================================================
 
 class ScreenCapture:
     """Handles taking, downscaling, and diffing screenshots."""
@@ -249,8 +230,7 @@ class ScreenCapture:
     def _select_monitor(self, monitors: List[Dict[str, int]]) -> Dict[str, int]:
         if self.monitor_index is not None and 0 <= self.monitor_index < len(monitors):
             return monitors[self.monitor_index]
-        # monitors[0] is the "all monitors combined" virtual screen in mss;
-        # prefer the first real monitor when present, matching original behavior.
+
         return monitors[1] if len(monitors) > 1 else monitors[0]
 
     def capture_native(self) -> Tuple[Image.Image, int, int]:
@@ -303,12 +283,10 @@ class ScreenCapture:
                         diffs += 1
             return diffs / float(total)
         except Exception:
-            return 0.0  # Non-fatal: diffing is purely informational.
+            return 0.0                                               
 
+                                                                             
 
-# ===========================================================================
-# Prompt construction
-# ===========================================================================
 
 class PromptBuilder:
     """Builds the per-step instruction prompt sent alongside the screenshot."""
@@ -370,14 +348,11 @@ with "fail" and explain why.
 {self.ACTION_SPEC}
 """
 
+                                                                             
 
-# ===========================================================================
-# Vision model client (with retries + robust parsing)
-# ===========================================================================
 
-# ===========================================================================
-# Vision model client (with retries + robust parsing + rate limiting)
-# ===========================================================================
+
+                                                                             
 
 class APIRateLimiter:
     def __init__(self, rpm_limit: int):
@@ -389,7 +364,6 @@ class APIRateLimiter:
         if elapsed < self.min_interval:
             time.sleep(self.min_interval - elapsed)
         self.last_call = time.time()
-
 
 class GeminiVisionClient:
     """Thin wrapper around the Gemini client adding retries and tolerant JSON parsing."""
@@ -413,7 +387,7 @@ class GeminiVisionClient:
                     config={"response_mime_type": "application/json"},
                 )
                 return self._parse_response_text(response.text)
-            except Exception as exc:  # network errors, malformed JSON, etc.
+            except Exception as exc:                                        
                 last_error = exc
                 err_str = str(exc)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
@@ -422,7 +396,7 @@ class GeminiVisionClient:
                 
                 logger.warning("Gemini call attempt %d/%d failed: %s", attempt, self.max_retries, str(exc)[:200])
                 if attempt < self.max_retries:
-                    time.sleep(self.backoff_seconds * attempt)  # simple linear backoff
+                    time.sleep(self.backoff_seconds * attempt)                         
         raise ModelResponseError(f"Vision model call failed after {self.max_retries} attempts: {last_error}")
 
     def _parse_response_text(self, raw_text: Optional[str]) -> Dict[str, Any]:
@@ -431,20 +405,17 @@ class GeminiVisionClient:
 
         text = raw_text.strip()
 
-        # First attempt: parse as-is.
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
-        # Second attempt: strip markdown code fences the model sometimes adds anyway.
         stripped = self._FENCE_RE.sub("", text).strip()
         try:
             return json.loads(stripped)
         except json.JSONDecodeError:
             pass
 
-        # Third attempt: extract the first {...} blob found anywhere in the text.
         match = self._OBJECT_RE.search(stripped)
         if match:
             try:
@@ -454,10 +425,8 @@ class GeminiVisionClient:
 
         raise ModelResponseError(f"Could not parse a JSON action from model output: {text[:300]!r}")
 
+                                                                             
 
-# ===========================================================================
-# Action validation + execution
-# ===========================================================================
 
 class ActionExecutor:
     """Validates parsed actions against the real screen and executes them safely."""
@@ -555,20 +524,17 @@ class ActionExecutor:
 
         if action == "wait":
             seconds = float(data.get("seconds", 1.0) or 1.0)
-            seconds = max(0.0, min(10.0, seconds))  # safety cap so a bad value can't stall the loop forever
+            seconds = max(0.0, min(10.0, seconds))                                                          
             from actions.computer_control import computer_control
             params = {"action": "wait", "duration": seconds}
             computer_control(params, player=None)
             msg = f"AutoPilot waited {seconds:.1f}s. Reason: {reason}"
             return msg, None, f"{seconds:.1f}s"
 
-        # "done" / "fail" are handled by the orchestrator, not here.
         raise ActionExecutionError(f"Action '{action}' should be handled by the orchestrator.")
 
+                                                                             
 
-# ===========================================================================
-# Callback safety helpers
-# ===========================================================================
 
 def _safe_call(callback: Optional[Callable], *args: Any, **kwargs: Any) -> None:
     """Invoke a caller-supplied callback without ever letting it crash the loop."""
@@ -577,14 +543,13 @@ def _safe_call(callback: Optional[Callable], *args: Any, **kwargs: Any) -> None:
     try:
         callback(*args, **kwargs)
     except TypeError:
-        # Caller's callback may have a different arity — fall back to a single string.
+                                                                                      
         try:
             callback(" ".join(str(a) for a in args))
         except Exception:
             logger.debug("Callback %r could not be invoked even with fallback signature.", callback)
     except Exception:
         logger.debug("Callback %r raised an exception:\n%s", callback, traceback.format_exc())
-
 
 def _fetch_persistent_memory(get_memory_callback: Optional[Callable], goal: str) -> Any:
     if get_memory_callback is None:
@@ -599,10 +564,8 @@ def _fetch_persistent_memory(get_memory_callback: Optional[Callable], goal: str)
     except Exception:
         return None
 
+                                                                             
 
-# ===========================================================================
-# Main entry point
-# ===========================================================================
 
 def autopilot(
     parameters: dict[str, Any],
@@ -645,8 +608,7 @@ def autopilot(
     memory = ActionMemory(config.history_window, config.stuck_repeat_threshold)
     prompt_builder = PromptBuilder(memory)
     persistent_memory = _fetch_persistent_memory(get_memory_callback, goal)
-    
-    # Throttle requests to stay just under the 15 RPM Free Tier limit (14 RPM)
+
     rate_limiter = APIRateLimiter(rpm_limit=14)
 
     _safe_call(ui_callback, f"AutoPilot engaged. Goal: {goal}")
@@ -657,11 +619,10 @@ def autopilot(
 
     for step in range(1, config.max_steps + 1):
         try:
-            # 1. Take a screenshot (downscaled for the model, native size for clicking).
+                                                                                        
             model_image, screen_w, screen_h = capture.capture_for_model()
             pre_action_image = model_image
 
-            # 2. Build the prompt with rolling history + persistent memory context.
             prompt = prompt_builder.build(
                 goal=goal,
                 step_number=step,
@@ -669,7 +630,6 @@ def autopilot(
                 persistent_memory=persistent_memory,
             )
 
-            # 3. Ask Gemini for exactly one next action (with rate limiting).
             rate_limiter.wait()
             data = vision_client.decide_next_action(model_image, prompt)
             action = data.get("action")
@@ -681,7 +641,6 @@ def autopilot(
             _safe_call(send_log_callback, log_msg)
             _safe_call(dashboard_callback, {"event": "decision", "step": step, "action": action, "reason": reason})
 
-            # 4. Terminal actions short-circuit the loop immediately.
             if action == "done":
                 msg = f"AutoPilot completed successfully after {step} step(s). Reason: {reason}"
                 _safe_call(ui_callback, msg)
@@ -696,7 +655,6 @@ def autopilot(
                 _safe_call(dashboard_callback, {"event": "fail", "step": step, "reason": reason})
                 return msg
 
-            # 5. Validate + execute the action against the real screen.
             executor = ActionExecutor(screen_w, screen_h, config)
             try:
                 exec_msg, target_box, detail = executor.execute(data)
@@ -709,9 +667,8 @@ def autopilot(
                 success = False
                 error_text = str(exec_err)
 
-            time.sleep(config.action_settle_seconds)  # let the UI react before the next screenshot
+            time.sleep(config.action_settle_seconds)                                               
 
-            # 6. Optionally measure whether the screen actually changed (diagnostic only).
             screen_changed: Optional[bool] = None
             if success and config.verify_with_diff and pre_action_image is not None:
                 try:
@@ -721,7 +678,6 @@ def autopilot(
                 except Exception:
                     screen_changed = None
 
-            # 7. Record this step for history + stuck-loop detection.
             record = StepRecord(
                 step_index=step,
                 action=action,
@@ -748,11 +704,9 @@ def autopilot(
             )
 
             if not success:
-                # Invalid action from the model — keep looping so it can self-correct
-                # next step, but don't silently pretend it worked.
+
                 continue
 
-            # 8. Stuck-loop detection: stop wasting steps repeating a no-op action.
             if memory.is_stuck():
                 msg = (
                     f"AutoPilot stopped after {step} step(s): detected a repeated, "
@@ -770,11 +724,11 @@ def autopilot(
             _safe_call(ui_callback, err)
             _safe_call(send_log_callback, err)
             _safe_call(dashboard_callback, {"event": "error", "step": step, "error": str(known_err)})
-            # Recoverable: try again next iteration rather than aborting the whole run.
+                                                                                       
             continue
             
         except AutoPilotError as ap_err:
-            # Cleanly catch explicitly raised AutoPilotErrors (like 429 Quota Exceeded)
+                                                                                       
             err = f"AutoPilot stopped: {ap_err}"
             logger.warning(err)
             _safe_call(ui_callback, err)
@@ -782,7 +736,7 @@ def autopilot(
             _safe_call(dashboard_callback, {"event": "fatal_error", "step": step, "error": str(ap_err)})
             return err
 
-        except Exception as exc:  # truly unexpected — abort the run, matching original safety behavior
+        except Exception as exc:                                                                       
             err = f"AutoPilot encountered an unexpected error: {exc}"
             logger.error("%s\n%s", err, traceback.format_exc())
             _safe_call(ui_callback, err)
@@ -796,10 +750,8 @@ def autopilot(
     _safe_call(dashboard_callback, {"event": "max_steps_reached", "max_steps": config.max_steps})
     return msg
 
+                                                                             
 
-# ===========================================================================
-# Manual smoke test (does not run unless this file is executed directly)
-# ===========================================================================
 
 if __name__ == "__main__":
     def _demo_ui(msg: str) -> None:

@@ -14,5 +14,10 @@
   "projects": {},
   "relationships": {},
   "wishes": {},
-  "notes": {}
+  "notes": {
+    "last_boot_time": {
+      "value": "Tuesday, June 30, 2026 — 07:54 PM",
+      "updated": "2026-06-30"
+    }
+  }
 }

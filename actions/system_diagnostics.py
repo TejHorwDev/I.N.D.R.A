@@ -36,7 +36,7 @@ def system_diagnostics(parameters: dict, response=None, player=None, session_mem
     elif action == "ping":
         target = parameters.get("target", "8.8.8.8")
         try:
-            # -n 2 for faster execution on Windows
+                                                  
             result = subprocess.run(["ping", "-n", "2", target], capture_output=True, text=True, timeout=5)
             return f"Ping results for {target}:\n{result.stdout}"
         except Exception as e:

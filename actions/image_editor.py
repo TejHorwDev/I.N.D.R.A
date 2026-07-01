@@ -20,7 +20,7 @@ def image_editor(parameters: dict, response=None, player=None, session_memory=No
         
         save_path = parameters.get("save_path", "")
         if not save_path:
-            # Default save behavior: overwrite or append _edited
+                                                                
             p = Path(source_path)
             save_path = str(p.parent / f"{p.stem}_edited{p.suffix}")
             
@@ -51,8 +51,7 @@ def image_editor(parameters: dict, response=None, player=None, session_memory=No
             
             p = Path(source_path)
             save_path = str(p.parent / f"{p.stem}.{format_ext}")
-            
-            # Convert RGBA to RGB for JPEG
+
             if format_ext == "jpeg" and img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
                 

@@ -25,8 +25,7 @@ def document_maker(parameters: dict, response=None, player=None, session_memory=
             doc = Document()
             if title:
                 doc.add_heading(title, 0)
-            
-            # Split content by double newlines for paragraphs
+
             paragraphs = content.split('\n\n')
             for p in paragraphs:
                 if p.strip():

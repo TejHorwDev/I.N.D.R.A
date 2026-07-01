@@ -8,15 +8,14 @@ def create_installer():
     exe_path = base_dir / "dist" / "INDRA" / "INDRA.exe"
     
     if not exe_path.exists():
-        # Try checking for onefile output
+                                         
         exe_path = base_dir / "dist" / "INDRA.exe"
         if not exe_path.exists():
             print("ERROR: INDRA.exe not found! Please build it first.")
             return
         
     shell = win32com.client.Dispatch("WScript.Shell")
-    
-    # 1. Desktop Shortcut
+
     desktop_dir = Path(shell.SpecialFolders("Desktop"))
     desktop_lnk = desktop_dir / "INDRA.lnk"
     
@@ -24,10 +23,9 @@ def create_installer():
     shortcut.Targetpath = str(exe_path)
     shortcut.WorkingDirectory = str(exe_path.parent)
     shortcut.IconLocation = str(exe_path)
-    shortcut.WindowStyle = 1 # Normal
+    shortcut.WindowStyle = 1         
     shortcut.Save()
-    
-    # 2. Startup Shortcut
+
     startup_dir = Path(shell.SpecialFolders("Startup"))
     startup_lnk = startup_dir / "INDRA.lnk"
     

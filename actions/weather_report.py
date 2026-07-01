@@ -1,8 +1,7 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 import webbrowser
 from urllib.parse import quote_plus
-
 
 def weather_action(
     parameters: dict,
@@ -42,7 +41,6 @@ def weather_action(
             pass
 
     return msg
-
 
 def _log(message: str, player=None) -> None:
     print(f"[Weather] {message}")

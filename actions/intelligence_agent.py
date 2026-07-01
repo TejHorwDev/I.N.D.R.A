@@ -30,7 +30,7 @@ def intelligence_agent(parameters: dict, response=None, player=None, session_mem
             
     elif action == "news":
         topic = parameters.get("topic", "world").lower()
-        # Fallback to Google News RSS
+                                     
         url = "https://news.google.com/rss"
         if topic and topic != "world":
             url = f"https://news.google.com/rss/search?q={topic}"

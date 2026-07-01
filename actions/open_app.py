@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 open_app.py – Enhanced Cross‑Platform App Launcher
 ===================================================
@@ -28,13 +28,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-# ----------------------------------------------------------------------
-# Optional dependencies (lazy import)
-# ----------------------------------------------------------------------
+                                     
+                                                                        
 _PSUTIL = None
 _PYAUTOGUI = None
 _WINREG = None
-
 
 def _import_psutil():
     global _PSUTIL
@@ -47,7 +45,6 @@ def _import_psutil():
             _PSUTIL = False
     return _PSUTIL
 
-
 def _import_pyautogui():
     global _PYAUTOGUI
     if _PYAUTOGUI is None:
@@ -58,7 +55,6 @@ def _import_pyautogui():
         except ImportError:
             _PYAUTOGUI = False
     return _PYAUTOGUI
-
 
 def _import_winreg():
     global _WINREG
@@ -71,30 +67,23 @@ def _import_winreg():
             _WINREG = False
     return _WINREG
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Platform helpers
-# ----------------------------------------------------------------------
-_SYSTEM = platform.system()  # "Windows", "Darwin", "Linux"
-
+_SYSTEM = platform.system()                                
 
 def _is_windows():
     return _SYSTEM == "Windows"
 
-
 def _is_mac():
     return _SYSTEM == "Darwin"
-
 
 def _is_linux():
     return _SYSTEM == "Linux"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Enormous alias database (500+ apps, human‑readable names → OS commands)
-# ----------------------------------------------------------------------
 _APP_ALIASES: Dict[str, Dict[str, str]] = {
-    # Browsers
+              
     "chrome": {
         "Windows": "chrome",
         "Darwin": "Google Chrome",
@@ -121,7 +110,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
     },
     "vivaldi": {"Windows": "vivaldi", "Darwin": "Vivaldi", "Linux": "vivaldi"},
     "tor": {"Windows": "torbrowser", "Darwin": "Tor Browser", "Linux": "torbrowser"},
-    # Messaging
+               
     "whatsapp": {
         "Windows": "WhatsApp",
         "Darwin": "WhatsApp",
@@ -140,7 +129,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
     "zoom": {"Windows": "Zoom", "Darwin": "zoom.us", "Linux": "zoom"},
     "element": {"Windows": "element", "Darwin": "Element", "Linux": "element-desktop"},
     "messenger": {"Windows": "Messenger", "Darwin": "Messenger", "Linux": "messenger"},
-    # Music & Video
+                   
     "spotify": {"Windows": "Spotify", "Darwin": "Spotify", "Linux": "spotify"},
     "vlc": {"Windows": "vlc", "Darwin": "VLC", "Linux": "vlc"},
     "netflix": {"Windows": "Netflix", "Darwin": "Netflix", "Linux": "netflix"},
@@ -154,7 +143,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
     "audacity": {"Windows": "audacity", "Darwin": "Audacity", "Linux": "audacity"},
     "obs": {"Windows": "obs64", "Darwin": "OBS", "Linux": "obs"},
     "kodi": {"Windows": "kodi", "Darwin": "Kodi", "Linux": "kodi"},
-    # Development
+                 
     "vscode": {"Windows": "code", "Darwin": "Visual Studio Code", "Linux": "code"},
     "visual studio code": {
         "Windows": "code",
@@ -191,7 +180,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
         "Darwin": "Unreal Editor",
         "Linux": "unreal-engine",
     },
-    # Office
+            
     "word": {
         "Windows": "winword",
         "Darwin": "Microsoft Word",
@@ -230,7 +219,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
         "Darwin": "Safari https://docs.google.com",
         "Linux": "xdg-open https://docs.google.com",
     },
-    # Utilities
+               
     "file explorer": {
         "Windows": "explorer.exe",
         "Darwin": "Finder",
@@ -275,7 +264,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
         "Darwin": "System Information",
         "Linux": "hardinfo",
     },
-    # Gaming
+            
     "steam": {"Windows": "steam", "Darwin": "Steam", "Linux": "steam"},
     "epic games": {
         "Windows": "EpicGamesLauncher",
@@ -299,7 +288,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
         "Linux": "minecraft-launcher",
     },
     "xbox": {"Windows": "xbox", "Darwin": "Xbox", "Linux": "greenlight"},
-    # Social & Media
+                    
     "instagram": {"Windows": "Instagram", "Darwin": "Instagram", "Linux": "instagram"},
     "tiktok": {"Windows": "TikTok", "Darwin": "TikTok", "Linux": "tiktok"},
     "capcut": {"Windows": "CapCut", "Darwin": "CapCut", "Linux": "capcut"},
@@ -320,7 +309,7 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
         "Darwin": "Adobe Lightroom",
         "Linux": "darktable",
     },
-    # System
+            
     "cmd as admin": {
         "Windows": "runas /user:Administrator cmd.exe",
         "Darwin": "Terminal",
@@ -335,43 +324,35 @@ _APP_ALIASES: Dict[str, Dict[str, str]] = {
     },
 }
 
-# Additional fallback aliases (generated from common names)
-# Add more dynamically if needed
+                                
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Fuzzy matching helper (cached)
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=256)
 def _normalize(raw: str) -> str:
     """Return the OS‑specific command string for an app name or path."""
     key = raw.lower().strip()
-    # Direct lookup
+                   
     if key in _APP_ALIASES:
         return _APP_ALIASES[key].get(_SYSTEM, raw)
 
-    # If it's an absolute path or contains extension, use as is
     if os.path.isabs(key) or os.path.splitext(key)[1]:
         return raw
 
-    # Partial matching (substring)
     for alias, mapping in _APP_ALIASES.items():
         if alias in key or key in alias:
             return mapping.get(_SYSTEM, raw)
 
-    # Try to find via similarity (expensive but rarely used)
-    # We use a lightweight approach: split words and look for common tokens
+                                                                           
     words = set(key.split())
     for alias, mapping in _APP_ALIASES.items():
         if words.intersection(set(alias.split())):
             return mapping.get(_SYSTEM, raw)
 
-    return raw  # no alias found, use original
+    return raw                                
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Process verification (psutil)
-# ----------------------------------------------------------------------
 def _verify_process(process_name: str, timeout: float = 3.0) -> bool:
     """
     Check if a process with *process_name* appears within timeout seconds.
@@ -379,7 +360,7 @@ def _verify_process(process_name: str, timeout: float = 3.0) -> bool:
     """
     psutil = _import_psutil()
     if not psutil:
-        return True  # can't verify, assume success
+        return True                                
 
     end_time = time.time() + timeout
     while time.time() < end_time:
@@ -387,7 +368,7 @@ def _verify_process(process_name: str, timeout: float = 3.0) -> bool:
             try:
                 name = proc.info["name"] or ""
                 exe = proc.info["exe"] or ""
-                # Compare case‑insensitively
+                                            
                 if (
                     process_name.lower() in name.lower()
                     or process_name.lower() in exe.lower()
@@ -398,26 +379,23 @@ def _verify_process(process_name: str, timeout: float = 3.0) -> bool:
         time.sleep(0.2)
     return False
 
-
 def _extract_process_name(command: str) -> str:
     """From a launch command, guess the process name for verification."""
-    # Remove arguments
+                      
     base = command.split(maxsplit=1)[0]
-    # On Windows, strip path and take file name
+                                               
     name = os.path.basename(base).lower()
-    # Remove common extensions
+                              
     for ext in (".exe", ".app", ".sh", ".desktop"):
         name = name.replace(ext, "")
-    # Remove spaces (some apps like "Google Chrome" -> "GoogleChrome")
+                                                                      
     name = name.replace(" ", "")
     return name
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Windows launcher (enhanced)
-# ----------------------------------------------------------------------
 def _launch_windows(app_name: str) -> bool:
-    # 1. Direct execution if in PATH or absolute
+                                                
     if os.path.isfile(app_name) or shutil.which(app_name.split(".")[0]):
         try:
             subprocess.Popen(
@@ -430,15 +408,13 @@ def _launch_windows(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 2. URI schemes (ms-settings:, shell:::, etc.)
     if ":" in app_name:
         try:
             subprocess.Popen(f"start {app_name}", shell=True)
-            return True  # URI launchers are hard to verify
+            return True                                    
         except Exception:
             pass
 
-    # 3. Try via registry Uninstall keys to get exact path
     winreg = _import_winreg()
     if winreg:
         for hive, key_path in [
@@ -463,7 +439,6 @@ def _launch_windows(app_name: str) -> bool:
             except Exception:
                 continue
 
-    # 4. Start Menu search (pyautogui)
     pyautogui = _import_pyautogui()
     if pyautogui:
         try:
@@ -477,7 +452,6 @@ def _launch_windows(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 5. Last resort: try as a Microsoft Store app (shell:AppsFolder)
     try:
         subprocess.Popen(["explorer", f"shell:AppsFolder\\{app_name}"], shell=True)
         return True
@@ -486,12 +460,10 @@ def _launch_windows(app_name: str) -> bool:
 
     return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# macOS launcher (enhanced)
-# ----------------------------------------------------------------------
 def _launch_macos(app_name: str) -> bool:
-    # 1. Use open -a (with .app suffix variants)
+                                                
     for suffix in ("", ".app"):
         try:
             result = subprocess.run(
@@ -502,7 +474,6 @@ def _launch_macos(app_name: str) -> bool:
         except Exception:
             continue
 
-    # 2. Direct binary execution
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
         try:
@@ -513,7 +484,6 @@ def _launch_macos(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 3. Spotlight search (pyautogui)
     pyautogui = _import_pyautogui()
     if pyautogui:
         try:
@@ -526,17 +496,14 @@ def _launch_macos(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 4. osascript launch by bundle identifier (if we know it)
-    # Not implemented, would need a huge mapping
+                                                
 
     return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Linux launcher (enhanced)
-# ----------------------------------------------------------------------
 def _launch_linux(app_name: str) -> bool:
-    # 1. Direct binary (which)
+                              
     binary = (
         shutil.which(app_name)
         or shutil.which(app_name.lower())
@@ -552,14 +519,12 @@ def _launch_linux(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 2. xdg-open (handles .desktop files and URIs)
     try:
         subprocess.run(["xdg-open", app_name], capture_output=True, timeout=5)
         return True
     except Exception:
         pass
 
-    # 3. gtk-launch (freedesktop spec)
     for desktop_name in [app_name.lower(), app_name.lower().replace(" ", "-")]:
         try:
             result = subprocess.run(
@@ -570,7 +535,6 @@ def _launch_linux(app_name: str) -> bool:
         except Exception:
             continue
 
-    # 4. Snap / Flatpak fallbacks
     try:
         subprocess.Popen(
             ["snap", "run", app_name],
@@ -592,16 +556,13 @@ def _launch_linux(app_name: str) -> bool:
 
     return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Unified launcher dispatcher
-# ----------------------------------------------------------------------
 _OS_LAUNCHERS = {
     "Windows": _launch_windows,
     "Darwin": _launch_macos,
     "Linux": _launch_linux,
 }
-
 
 def open_app(
     parameters=None,
@@ -626,22 +587,19 @@ def open_app(
         return f"Unsupported OS: {_SYSTEM}"
 
     normalized = _normalize(app_name)
-    print(f"[open_app] Request: '{app_name}' → '{normalized}' ({_SYSTEM})")
+    print(f"[open_app] Request: '{app_name}' -> '{normalized}' ({_SYSTEM})")
     if player:
         player.write_log(f"[open_app] {app_name}")
 
-    # Try normalized alias first
     success = launcher(normalized)
     if success:
         return f"Opened {app_name}."
 
-    # If alias differs from original, try the original raw string as a fallback
     if normalized.lower() != app_name.lower():
         success = launcher(app_name)
         if success:
             return f"Opened {app_name}."
 
-    # Absolute last resort: try as a web URL (if it looks like a domain or web app)
     if "." in app_name and not app_name.startswith((".", "/")):
         try:
             import webbrowser

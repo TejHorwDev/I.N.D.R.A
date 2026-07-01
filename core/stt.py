@@ -9,7 +9,6 @@ import json
 
 import numpy as np
 
-
 class WhisperSTT:
     """Offline transcription using faster-whisper."""
 
@@ -30,8 +29,7 @@ class WhisperSTT:
         try:
             self._model = WhisperModel(model_name, device=device, compute_type=compute)
         except Exception as _first_err:
-            # Offline flag set but model not cached yet → clear flags and download once.
-            # Keywords cover multiple huggingface_hub error message variants across versions.
+
             _e = str(_first_err).lower()
             _offline_keywords = (
                 "offline",
@@ -76,9 +74,9 @@ class WhisperSTT:
             segments, _ = self._model.transcribe(
                 audio,
                 language=self._language,
-                beam_size=1,  # greedy — 2-3x faster
+                beam_size=1,                        
                 best_of=1,
-                condition_on_previous_text=False,  # no hallucinations, faster
+                condition_on_previous_text=False,                             
                 vad_filter=True,
                 vad_parameters={"min_silence_duration_ms": 300},
             )
@@ -86,7 +84,6 @@ class WhisperSTT:
         except Exception as e:
             print(f"[STT] Transcription error: {e}")
             raise
-
 
 class VoskSTT:
     """Streaming transcription using Vosk."""

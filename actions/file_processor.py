@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 file_processor.py — INDRA Universal File Processor (Enhanced)
 =============================================================
@@ -45,14 +45,12 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-# --------------------------- Configuration ---------------------------
 
-# Safety limits
-MAX_FILE_SIZE_MB = 200  # refuse files larger than 200 MB
-MAX_AI_CONTENT_CHARS = 30_000  # truncate text before sending to AI
-MAX_VIDEO_DURATION_S = 600  # max 10 min for local processing
+               
+MAX_FILE_SIZE_MB = 200                                   
+MAX_AI_CONTENT_CHARS = 30_000                                      
+MAX_VIDEO_DURATION_S = 600                                   
 
-# Cached dependencies (lazy import to avoid startup penalty)
 _PIL = None
 _PDFPLUMBER = None
 _PYPDF = None
@@ -65,7 +63,6 @@ _LXML = None
 _TESSERACT = None
 _GEMINI_CLIENT = None
 
-# --------------------------- Lazy Import Helpers ---------------------------
 
 
 def _import_pil():
@@ -75,7 +72,6 @@ def _import_pil():
 
         _PIL = Image
     return _PIL
-
 
 def _import_pdfplumber():
     global _PDFPLUMBER
@@ -88,7 +84,6 @@ def _import_pdfplumber():
             _PDFPLUMBER = False
     return _PDFPLUMBER
 
-
 def _import_pypdf():
     global _PYPDF
     if _PYPDF is None:
@@ -99,7 +94,6 @@ def _import_pypdf():
         except ImportError:
             _PYPDF = False
     return _PYPDF
-
 
 def _import_pydub():
     global _PYDUB
@@ -112,7 +106,6 @@ def _import_pydub():
             _PYDUB = False
     return _PYDUB
 
-
 def _import_docx():
     global _DOCX
     if _DOCX is None:
@@ -123,7 +116,6 @@ def _import_docx():
         except ImportError:
             _DOCX = False
     return _DOCX
-
 
 def _import_pptx():
     global _PPTX
@@ -136,7 +128,6 @@ def _import_pptx():
             _PPTX = False
     return _PPTX
 
-
 def _import_pandas():
     global _PANDAS
     if _PANDAS is None:
@@ -147,7 +138,6 @@ def _import_pandas():
         except ImportError:
             _PANDAS = False
     return _PANDAS
-
 
 def _import_openpyxl():
     global _OPENPYXL
@@ -160,7 +150,6 @@ def _import_openpyxl():
             _OPENPYXL = False
     return _OPENPYXL
 
-
 def _import_lxml():
     global _LXML
     if _LXML is None:
@@ -171,7 +160,6 @@ def _import_lxml():
         except ImportError:
             _LXML = False
     return _LXML
-
 
 def _import_tesseract():
     global _TESSERACT
@@ -184,9 +172,7 @@ def _import_tesseract():
             _TESSERACT = False
     return _TESSERACT
 
-
-# --------------------------- API Key & Gemini Client ---------------------------
-
+                                                                                 
 
 def _get_api_key() -> str:
     """Safe API key loader with clear error messages."""
@@ -203,7 +189,6 @@ def _get_api_key() -> str:
             f"Unable to load Gemini API key from {config_path}: {e}"
         ) from e
 
-
 def _gemini_client():
     """Lazy singleton Gemini client."""
     global _GEMINI_CLIENT
@@ -214,14 +199,11 @@ def _gemini_client():
         _GEMINI_CLIENT = genai.Client(api_key=api_key)
     return _GEMINI_CLIENT
 
-
-# --------------------------- Utility Functions ---------------------------
-
+                                                                           
 
 def _file_size_mb(path: Path) -> float:
     """File size in megabytes."""
     return path.stat().st_size / (1024 * 1024)
-
 
 def _file_size_str(path: Path) -> str:
     size = path.stat().st_size
@@ -233,13 +215,11 @@ def _file_size_str(path: Path) -> str:
         return f"{size/1024**2:.1f} MB"
     return f"{size/1024**3:.1f} GB"
 
-
 def _output_path(src: Path, suffix: str, new_ext: str = None) -> Path:
     """Generate a safe output path next to the source."""
     ext = new_ext if new_ext else src.suffix
     name = f"{src.stem}_{suffix}{ext}"
     return src.parent / name
-
 
 def _check_file_size(path: Path, max_mb: int = MAX_FILE_SIZE_MB) -> None:
     """Raise if file is too large."""
@@ -247,7 +227,6 @@ def _check_file_size(path: Path, max_mb: int = MAX_FILE_SIZE_MB) -> None:
         raise ValueError(
             f"File size ({_file_size_mb(path):.1f} MB) exceeds limit of {max_mb} MB."
         )
-
 
 def _safe_subprocess_run(
     cmd: List[str], timeout: int = 300, **kwargs
@@ -262,7 +241,6 @@ def _safe_subprocess_run(
     except FileNotFoundError:
         raise RuntimeError(f"Required tool not found: {cmd[0]}")
 
-
 def _ffmpeg_available() -> bool:
     """Check if ffmpeg is accessible."""
     try:
@@ -271,7 +249,6 @@ def _ffmpeg_available() -> bool:
     except Exception:
         return False
 
-
 def _ffprobe_available() -> bool:
     """Check if ffprobe is accessible."""
     try:
@@ -279,7 +256,6 @@ def _ffprobe_available() -> bool:
         return True
     except Exception:
         return False
-
 
 def _detect_type(path: Path) -> str:
     """Fast extension‑based file type detection (cached per path)."""
@@ -405,9 +381,7 @@ def _detect_type(path: Path) -> str:
         return "pptx"
     return "unknown"
 
-
-# --------------------------- AI Helper ---------------------------
-
+                                                                   
 
 def _ai_process(prompt: str, max_chars: int = MAX_AI_CONTENT_CHARS) -> str:
     """Send a prompt to Gemini and return clean text."""
@@ -419,7 +393,6 @@ def _ai_process(prompt: str, max_chars: int = MAX_AI_CONTENT_CHARS) -> str:
         return response.text.strip()
     except Exception as e:
         raise RuntimeError(f"AI processing failed: {e}") from e
-
 
 def _ai_process_with_image(prompt: str, image_path: Path) -> str:
     """Send an image along with a prompt to Gemini."""
@@ -434,15 +407,12 @@ def _ai_process_with_image(prompt: str, image_path: Path) -> str:
     except Exception as e:
         raise RuntimeError(f"AI image analysis failed: {e}") from e
 
-
-# --------------------------- Image Processing ---------------------------
-
+                                                                          
 
 def _process_image(path: Path, action: str, params: dict, speak=None) -> str:
-    _check_file_size(path, max_mb=50)  # images larger than 50MB can be problematic
+    _check_file_size(path, max_mb=50)                                              
     action = action or "describe"
 
-    # --- AI‑based actions ---
     if action in ("describe", "ocr", "analyze", "read", "extract_text"):
         prompt = {
             "describe": "Describe this image in detail.",
@@ -454,7 +424,6 @@ def _process_image(path: Path, action: str, params: dict, speak=None) -> str:
         if params.get("instruction"):
             prompt = params["instruction"]
 
-        # Check for local Tesseract OCR for action=ocr (optional fallback)
         if action == "ocr":
             tess = _import_tesseract()
             if tess:
@@ -465,8 +434,8 @@ def _process_image(path: Path, action: str, params: dict, speak=None) -> str:
                     if text.strip():
                         return text.strip()
                 except Exception as e:
-                    pass  # fall through to Gemini
-        # AI fallback
+                    pass                          
+                     
         result = _ai_process_with_image(prompt, path)
         if len(result) > 500 and params.get("save", True):
             out = _output_path(path, "result", ".txt")
@@ -474,7 +443,6 @@ def _process_image(path: Path, action: str, params: dict, speak=None) -> str:
             return f"{result[:300]}...\n\nFull result saved to: {out}"
         return result
 
-    # --- Non‑AI actions ---
     Image = _import_pil()
 
     if action == "resize":
@@ -532,19 +500,16 @@ def _process_image(path: Path, action: str, params: dict, speak=None) -> str:
             f"mode: {img.mode}, size: {_file_size_str(path)}"
         )
 
-    # Fallback: treat any unknown action as a custom AI description
     return _process_image(
         path, "describe", {"instruction": f"{action}: {params}"}, speak
     )
 
-
-# --------------------------- PDF Processing ---------------------------
-
+                                                                        
 
 def _extract_pdf_text(path: Path, max_chars: int = MAX_AI_CONTENT_CHARS) -> str:
     """Extract text from PDF using best available library."""
     text = ""
-    # Try pdfplumber first (best quality)
+                                         
     plumber = _import_pdfplumber()
     if plumber:
         try:
@@ -558,7 +523,6 @@ def _extract_pdf_text(path: Path, max_chars: int = MAX_AI_CONTENT_CHARS) -> str:
         except Exception:
             pass
 
-    # Fallback to pypdf
     pypdf = _import_pypdf()
     if pypdf:
         try:
@@ -571,7 +535,6 @@ def _extract_pdf_text(path: Path, max_chars: int = MAX_AI_CONTENT_CHARS) -> str:
             pass
 
     return text[:max_chars]
-
 
 def _process_pdf(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=150)
@@ -628,7 +591,7 @@ def _process_pdf(path: Path, action: str, params: dict, speak=None) -> str:
         return f"Converted to Word document. Saved: {out.name}"
 
     if action == "to_images":
-        # Convert PDF pages to images using pdf2image (optional)
+                                                                
         try:
             from pdf2image import convert_from_path
 
@@ -646,9 +609,7 @@ def _process_pdf(path: Path, action: str, params: dict, speak=None) -> str:
 
     return f"Unknown PDF action: '{action}'. Try: summarize, extract_text, info, to_word, to_images"
 
-
-# --------------------------- Text / DOCX Processing ---------------------------
-
+                                                                                
 
 def _read_text_content(path: Path, file_type: str) -> str:
     if file_type == "docx":
@@ -662,7 +623,6 @@ def _read_text_content(path: Path, file_type: str) -> str:
             return f"Read failed: {e}"
     else:
         return path.read_text(encoding="utf-8", errors="ignore")
-
 
 def _process_text_doc(
     path: Path, file_type: str, action: str, params: dict, speak=None
@@ -709,9 +669,7 @@ def _process_text_doc(
         return f"{result[:400]}...\n\nFull result saved: {out.name}"
     return result
 
-
-# --------------------------- CSV / Excel Processing ---------------------------
-
+                                                                                
 
 def _process_data(
     path: Path, file_type: str, action: str, params: dict, speak=None
@@ -811,14 +769,11 @@ def _process_data(
         except Exception as e:
             return f"Sort failed: {e}"
 
-    # Fallback to AI for any unrecognized action
     preview = df.head(30).to_string()
     prompt = f"Task: {action}\nDataset ({len(df)} rows, cols: {list(df.columns)}):\n{preview}"
     return _ai_process(prompt)
 
-
-# --------------------------- JSON Processing ---------------------------
-
+                                                                         
 
 def _process_json(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=50)
@@ -855,12 +810,9 @@ def _process_json(path: Path, action: str, params: dict, speak=None) -> str:
             return f"Converted to CSV. Saved: {out.name}"
         return "JSON must be an array of objects to convert to CSV."
 
-    # Fallback
     return _process_json(path, "analyze", {"instruction": action})
 
-
-# --------------------------- XML Processing ---------------------------
-
+                                                                        
 
 def _process_xml(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=50)
@@ -877,7 +829,7 @@ def _process_xml(path: Path, action: str, params: dict, speak=None) -> str:
                 etree.fromstring(content.encode())
                 return f"Valid XML. Size: {_file_size_str(path)}"
             else:
-                # Fallback to ElementTree
+                                         
                 import xml.etree.ElementTree as ET
 
                 ET.fromstring(content)
@@ -924,12 +876,9 @@ def _process_xml(path: Path, action: str, params: dict, speak=None) -> str:
             prompt = f"{params['instruction']}\n\nXML data:\n{content[:MAX_AI_CONTENT_CHARS]}"
         return _ai_process(prompt)
 
-    # Fallback to AI
     return _process_xml(path, "analyze", {"instruction": action})
 
-
-# --------------------------- Code Processing ---------------------------
-
+                                                                         
 
 def _process_code(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=10)
@@ -981,9 +930,7 @@ def _process_code(path: Path, action: str, params: dict, speak=None) -> str:
         return f"{result[:400]}...\n\nSaved: {out.name}"
     return result
 
-
-# --------------------------- Audio Processing ---------------------------
-
+                                                                          
 
 def _process_audio(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=150)
@@ -1007,10 +954,10 @@ def _process_audio(path: Path, action: str, params: dict, speak=None) -> str:
         return f"Audio file: {_file_size_str(path)} (install pydub for more info)"
 
     if action == "transcribe":
-        # Option 1: local whisper? Not implemented, use Gemini multimodal
+                                                                         
         try:
             content = path.read_bytes()
-            if len(content) > 20 * 1024 * 1024:  # 20 MB limit for Gemini
+            if len(content) > 20 * 1024 * 1024:                          
                 return "Audio file too large for AI transcription (>20MB)."
             mime = {
                 "mp3": "audio/mp3",
@@ -1068,9 +1015,7 @@ def _process_audio(path: Path, action: str, params: dict, speak=None) -> str:
 
     return f"Unknown audio action: '{action}'. Try: transcribe, info, convert, trim"
 
-
-# --------------------------- Video Processing ---------------------------
-
+                                                                          
 
 def _process_video(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=500)
@@ -1184,7 +1129,7 @@ def _process_video(path: Path, action: str, params: dict, speak=None) -> str:
             return f"Compress failed: {e}"
 
     if action == "transcribe":
-        # Extract audio first then transcribe
+                                             
         tmp_audio = Path(tempfile.mktemp(suffix=".mp3"))
         try:
             _safe_subprocess_run(
@@ -1221,9 +1166,7 @@ def _process_video(path: Path, action: str, params: dict, speak=None) -> str:
 
     return f"Unknown video action: '{action}'. Try: info, trim, extract_audio, extract_frame, compress, transcribe, convert"
 
-
-# --------------------------- Archive Processing ---------------------------
-
+                                                                            
 
 def _process_archive(path: Path, action: str, params: dict, speak=None) -> str:
     action = action or "list"
@@ -1238,9 +1181,9 @@ def _process_archive(path: Path, action: str, params: dict, speak=None) -> str:
                 with tarfile.open(path) as t:
                     names = t.getnames()
             else:
-                # Try shutil.get_archive_formats()
+                                                  
                 names = []
-                # Fallback: use shutil.unpack_archive to list? Not supported directly
+                                                                                     
                 return (
                     f"Archive listing not directly supported for .{ext} (try: extract)"
                 )
@@ -1261,9 +1204,7 @@ def _process_archive(path: Path, action: str, params: dict, speak=None) -> str:
 
     return f"Unknown archive action: '{action}'. Try: list, extract"
 
-
-# --------------------------- PPTX Processing ---------------------------
-
+                                                                         
 
 def _process_pptx(path: Path, action: str, params: dict, speak=None) -> str:
     _check_file_size(path, max_mb=100)
@@ -1289,7 +1230,7 @@ def _process_pptx(path: Path, action: str, params: dict, speak=None) -> str:
     if action in ("summarize", "extract_text", "analyze"):
         text = _read_pptx_text()
         if isinstance(text, str) and text.startswith("python-pptx"):
-            return text  # error message
+            return text                 
         if action == "extract_text":
             out = _output_path(path, "text", ".txt")
             out.write_text(text, encoding="utf-8")
@@ -1298,14 +1239,12 @@ def _process_pptx(path: Path, action: str, params: dict, speak=None) -> str:
         return _ai_process(prompt)
 
     if action == "to_pdf":
-        # Requires LibreOffice or similar, not implemented here
+                                                               
         return "PPTX to PDF conversion requires LibreOffice (not yet integrated)."
 
     return f"Unknown PPTX action: '{action}'. Try: summarize, extract_text, analyze"
 
-
-# --------------------------- Main Controller (Untouched) ---------------------------
-
+                                                                                     
 
 def file_processor(parameters: dict, player=None, speak=None) -> str:
     file_path_str = parameters.get("file_path", "").strip()

@@ -15,17 +15,17 @@ def mock_config_dir(tmp_path, monkeypatch):
 
 def test_save_and_load_api_keys(mock_config_dir):
     _, test_file = mock_config_dir
-    cm.save_api_keys("test_key_123")
+    cm.save_api_keys(gemini_api_key="test_key_123")
     
     assert test_file.exists()
     keys = cm.load_api_keys()
     assert keys["gemini_api_key"] == "test_key_123"
 
 def test_is_configured(mock_config_dir):
-    cm.save_api_keys("this_is_a_valid_long_key_1234567")
+    cm.save_api_keys(gemini_api_key="this_is_a_valid_long_key_1234567")
     assert cm.is_configured() is True
     
-    cm.save_api_keys("short")
+    cm.save_api_keys(gemini_api_key="short")
     assert cm.is_configured() is False
 
 def test_load_nonexistent_config(mock_config_dir):

@@ -1,0 +1,13 @@
+List of API Keys used in the I.N.D.R.A. project:
+
+1. gemini_api_key (Google Gemini core engine)
+   Value: AQ.Ab8RN6JdSi0sIM5sdRb_6xeaP3LOU6-YfgEg0Yhy8ha-INPJZA
+
+2. gemini_vision_api_key (Google Gemini vision/screen processing)
+   Value: AQ.Ab8RN6LUhUwT5O0o0eKLKLSVaDMBAW_rVlvQA0p9cmDUfaMGeg
+
+3. elevenlabs_api_key (ElevenLabs text-to-speech engine)
+   Value: [Not currently configured in config files]
+
+4. OPENWEATHER_API_KEY (OpenWeatherMap weather data)
+   Value: [Not currently configured in config files]

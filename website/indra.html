@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I.N.D.R.A - The Sovereign Brain</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="split-page" style="--accent-color: var(--indra-color);">
+    <div id="ui-background">
+        <canvas id="stars" aria-hidden="true"></canvas>
+        <main class="scene">
+            <div class="orb-halo" id="orbHalo" aria-hidden="true"></div>
+            <canvas id="orbCanvas" class="orb-canvas"></canvas>
+            <div class="fx-field" id="fxField" aria-hidden="true"></div>
+            <div id="aiStateText" style="display: none;"></div>
+        </main>
+    </div>
+
+    <nav class="navbar">
+        <a href="index.html" class="logo">I.N.D.R.A</a>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="agents.html" class="active">Agents</a>
+            <a href="giveaway.html">Giveaway</a>
+            <a href="download.html" class="btn-primary-sm">Download App</a>
+        </div>
+    </nav>
+
+    <!-- First screen is the split layout -->
+    <div class="split-layout">
+        <div class="content-side scroll-slide-left">
+            <h1 style="font-size: 4rem; color: var(--indra-color); margin-bottom: 20px; letter-spacing: -2px;">I.N.D.R.A</h1>
+            <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 30px;">The sovereign orchestrator of your digital life. INDRA is not just a chatbot—it is an autonomous desktop OS layer capable of total computer control.</p>
+            <a href="#deep-features" class="btn-primary" style="padding: 12px 24px;">Explore Capabilities ↓</a>
+        </div>
+    </div>
+
+    <!-- Deep scroll section -->
+    <section id="deep-features" class="deep-content-section">
+        <h2 class="scroll-reveal" style="font-size: 3rem; text-align: center; margin-bottom: 20px;">Complete Autonomy</h2>
+        <p class="scroll-reveal delay-100" style="text-align: center; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">INDRA possesses a suite of built-in tools that give it unparalleled control over your operating system, filesystem, and applications.</p>
+
+        <div class="feature-grid">
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> autopilot</h4>
+                <p>The ultimate visual automation agent. Uses visual bounding boxes to locate and click with 100% precision. Autonomously locates elements on the computer screen and interacts with them (click, type, move mouse).</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> dev_agent</h4>
+                <p>Builds complete multi-file projects from scratch: plans, writes files, installs deps, opens VSCode, runs and fixes errors.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> file_controller</h4>
+                <p>Manages files and folders: list, create, delete, move, copy, rename, read, write, find, disk usage.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-200" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> desktop_control</h4>
+                <p>Controls the desktop: wallpaper, organize, clean, list, stats.</p>
+            </div>
+            
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-300" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> computer_control</h4>
+                <p>Direct computer control (blind execution) for executing commands on behalf of the user when visual processing is not required.</p>
+            </div>
+
+            <div class="tech-card tilt-card neon-glow scroll-reveal delay-400" style="--accent-color: var(--indra-color);">
+                <h4><span style="color: var(--indra-color);">■</span> Cryptographic Security</h4>
+                <p>Built with offline, mathematically locked HWID validation. Your license is bound to your motherboard, rendering unauthorized distribution and piracy impossible.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer style="margin-top: 100px; border-top: 1px solid var(--glass-border); padding: 40px; text-align: center;">
+        <p>&copy; 2026 INDRA Corp.</p>
+    </footer>
+
+    <script src="assets/script.js"></script>
+    <script src="scroll.js"></script>
+    <script src="cinematic.js"></script>
+    <script>
+        if (window.setTheme) { window.setTheme('indra'); }
+        if (window.INDRAOrb) { window.INDRAOrb.setState('THINKING'); }
+    </script>
+</body>
+</html>

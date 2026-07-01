@@ -12,7 +12,7 @@ def terminal_controller(parameters: dict, player=None) -> str:
     timeout = parameters.get("timeout", 60)
     
     try:
-        # Use powershell on Windows, bash on Unix
+                                                 
         shell_cmd = ["powershell", "-Command", command] if os.name == 'nt' else ["bash", "-c", command]
         
         result = subprocess.run(
@@ -35,8 +35,7 @@ def terminal_controller(parameters: dict, player=None) -> str:
             return f"Command '{command}' executed successfully with no output."
             
         final_output = "\n".join(output)
-        
-        # Truncate if too long
+
         if len(final_output) > 2000:
             final_output = final_output[:2000] + "\n...[TRUNCATED]"
             

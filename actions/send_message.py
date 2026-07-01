@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 send_message.py – INDRA Advanced Messaging Engine
 ===================================================
@@ -31,13 +31,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
-# ----------------------------------------------------------------------
-# Lazy imports
-# ----------------------------------------------------------------------
+              
+                                                                        
 _PYAUTOGUI = None
 _PYPERCLIP = None
 _PIL = None
-
 
 def _import_pyautogui():
     global _PYAUTOGUI
@@ -52,7 +50,6 @@ def _import_pyautogui():
             _PYAUTOGUI = False
     return _PYAUTOGUI
 
-
 def _import_pyperclip():
     global _PYPERCLIP
     if _PYPERCLIP is None:
@@ -63,7 +60,6 @@ def _import_pyperclip():
         except ImportError:
             _PYPERCLIP = False
     return _PYPERCLIP
-
 
 def _import_pil():
     global _PIL
@@ -76,16 +72,13 @@ def _import_pil():
             _PIL = False
     return _PIL
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Path & config helpers
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 @lru_cache(maxsize=1)
 def _get_os() -> str:
@@ -95,7 +88,7 @@ def _get_os() -> str:
         )
         return cfg.get("os_system", "windows").lower()
     except Exception:
-        # fallback to platform
+                              
         import platform
 
         plat = platform.system().lower()
@@ -103,27 +96,21 @@ def _get_os() -> str:
             "mac" if plat == "darwin" else ("linux" if plat == "linux" else "windows")
         )
 
-
 def _is_windows():
     return _get_os() == "windows"
-
 
 def _is_mac():
     return _get_os() == "mac"
 
-
 def _is_linux():
     return _get_os() == "linux"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# PyAutoGUI helpers
-# ----------------------------------------------------------------------
 def _require_pyautogui():
     pg = _import_pyautogui()
     if not pg:
         raise RuntimeError("PyAutoGUI not installed. Run: pip install pyautogui")
-
 
 def _paste_text(text: str) -> None:
     _require_pyautogui()
@@ -143,9 +130,8 @@ def _paste_text(text: str) -> None:
             return
         except Exception:
             pass
-    # Fallback: type out the text (slow but reliable)
+                                                     
     pg.write(text, interval=0.03)
-
 
 def _clear_and_paste(text: str) -> None:
     _require_pyautogui()
@@ -160,18 +146,15 @@ def _clear_and_paste(text: str) -> None:
     time.sleep(0.1)
     _paste_text(text)
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# App launching (multi‑strategy)
-# ----------------------------------------------------------------------
 def _which_app(app_cmd: str) -> Optional[Path]:
     """Return the full path of an executable if found."""
     return shutil.which(app_cmd) or shutil.which(app_cmd.split(".")[0]) or None
 
-
 def _open_app_win(name: str) -> bool:
     """Windows: try direct exe, then Start Menu search."""
-    # 1. Direct path / command
+                              
     if os.path.isfile(name) or _which_app(name):
         try:
             subprocess.Popen(
@@ -182,7 +165,6 @@ def _open_app_win(name: str) -> bool:
         except Exception:
             pass
 
-    # 2. Start Menu search via pyautogui
     pg = _import_pyautogui()
     if pg:
         try:
@@ -196,7 +178,6 @@ def _open_app_win(name: str) -> bool:
         except Exception:
             pass
 
-    # 3. Try opening via shell:AppsFolder
     try:
         subprocess.Popen(["explorer", f"shell:AppsFolder\\{name}"], shell=True)
         time.sleep(2)
@@ -205,10 +186,9 @@ def _open_app_win(name: str) -> bool:
         pass
     return False
 
-
 def _open_app_mac(name: str) -> bool:
     """macOS: open -a, then Spotlight."""
-    # 1. open -a with and without .app
+                                      
     for suffix in ("", ".app"):
         try:
             result = subprocess.run(
@@ -220,7 +200,6 @@ def _open_app_mac(name: str) -> bool:
         except Exception:
             continue
 
-    # 2. Direct binary
     binary = _which_app(name)
     if binary:
         try:
@@ -232,7 +211,6 @@ def _open_app_mac(name: str) -> bool:
         except Exception:
             pass
 
-    # 3. Spotlight search
     pg = _import_pyautogui()
     if pg:
         try:
@@ -247,10 +225,9 @@ def _open_app_mac(name: str) -> bool:
             pass
     return False
 
-
 def _open_app_linux(name: str) -> bool:
     """Linux: gtk-launch, direct binary, xdg-open."""
-    # 1. gtk-launch
+                   
     try:
         subprocess.Popen(
             ["gtk-launch", name.lower()],
@@ -262,7 +239,6 @@ def _open_app_linux(name: str) -> bool:
     except Exception:
         pass
 
-    # 2. Direct binary (try name, lower, without spaces)
     for variant in (name, name.lower(), name.lower().replace(" ", "-")):
         binary = _which_app(variant)
         if binary:
@@ -275,7 +251,6 @@ def _open_app_linux(name: str) -> bool:
             except Exception:
                 pass
 
-    # 3. xdg-open
     try:
         subprocess.run(["xdg-open", name], capture_output=True, timeout=5)
         time.sleep(2.5)
@@ -285,7 +260,6 @@ def _open_app_linux(name: str) -> bool:
 
     return False
 
-
 def _open_app(name: str) -> bool:
     """Unified app opener based on OS."""
     if _is_windows():
@@ -294,7 +268,6 @@ def _open_app(name: str) -> bool:
         return _open_app_mac(name)
     else:
         return _open_app_linux(name)
-
 
 def _open_browser_url(url: str) -> bool:
     import webbrowser
@@ -306,10 +279,8 @@ def _open_browser_url(url: str) -> bool:
     except Exception:
         return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# UI interaction helpers
-# ----------------------------------------------------------------------
 def _search_in_app(query: str) -> None:
     _require_pyautogui()
     pg = _import_pyautogui()
@@ -322,14 +293,12 @@ def _search_in_app(query: str) -> None:
     _clear_and_paste(query)
     time.sleep(1.0)
 
-
 def _press_tab(count: int = 1) -> None:
     _require_pyautogui()
     pg = _import_pyautogui()
     for _ in range(count):
         pg.press("tab")
         time.sleep(0.15)
-
 
 def _wait_for_image(
     image_file: str, timeout: float = 5.0, confidence: float = 0.8
@@ -349,10 +318,8 @@ def _wait_for_image(
         pass
     return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Core send logic for each platform
-# ----------------------------------------------------------------------
 def _desktop_send(
     app_name: str, receiver: str, message: str, search_placeholder: str = None
 ) -> str:
@@ -361,7 +328,7 @@ def _desktop_send(
         return f"Could not open {app_name}."
 
     time.sleep(1.0)
-    # Use a placeholder if the search box needs special text (e.g., "Search or start new chat")
+                                                                                               
     query = search_placeholder or receiver
     _search_in_app(query)
     pg = _import_pyautogui()
@@ -374,25 +341,20 @@ def _desktop_send(
     time.sleep(0.3)
     return f"Message sent to {receiver} via {app_name}."
 
-
 def _send_whatsapp(receiver: str, message: str) -> str:
     return _desktop_send("WhatsApp", receiver, message)
-
 
 def _send_telegram(receiver: str, message: str) -> str:
     return _desktop_send("Telegram", receiver, message)
 
-
 def _send_signal(receiver: str, message: str) -> str:
     return _desktop_send("Signal", receiver, message)
-
 
 def _send_discord(receiver: str, message: str) -> str:
     return _desktop_send("Discord", receiver, message)
 
-
 def _send_slack(receiver: str, message: str) -> str:
-    # Slack desktop app uses Ctrl+K to jump to conversation
+                                                           
     _require_pyautogui()
     if not _open_app("Slack"):
         return "Could not open Slack."
@@ -412,7 +374,6 @@ def _send_slack(receiver: str, message: str) -> str:
     pg.press("enter")
     return f"Message sent to {receiver} via Slack."
 
-
 def _send_teams(receiver: str, message: str) -> str:
     """Microsoft Teams: Ctrl+N for new chat, then type name, then message."""
     _require_pyautogui()
@@ -420,7 +381,7 @@ def _send_teams(receiver: str, message: str) -> str:
         return "Could not open Microsoft Teams."
     time.sleep(3.0)
     pg = _import_pyautogui()
-    # New chat
+              
     if _is_mac():
         pg.hotkey("command", "n")
     else:
@@ -428,7 +389,7 @@ def _send_teams(receiver: str, message: str) -> str:
     time.sleep(1.0)
     _clear_and_paste(receiver)
     time.sleep(1.5)
-    # Navigate to first suggestion
+                                  
     pg.press("down")
     time.sleep(0.3)
     pg.press("enter")
@@ -437,10 +398,8 @@ def _send_teams(receiver: str, message: str) -> str:
     pg.press("enter")
     return f"Message sent to {receiver} via Teams."
 
-
 def _send_skype(receiver: str, message: str) -> str:
     return _desktop_send("Skype", receiver, message, search_placeholder="Search Skype")
-
 
 def _send_instagram(receiver: str, message: str) -> str:
     _require_pyautogui()
@@ -455,7 +414,6 @@ def _send_instagram(receiver: str, message: str) -> str:
     pg.press("enter")
     time.sleep(0.4)
 
-    # Tab to the message box (approx 4 tabs from contact entry)
     _press_tab(4)
     pg.press("enter")
     time.sleep(2.0)
@@ -465,7 +423,6 @@ def _send_instagram(receiver: str, message: str) -> str:
     pg.press("enter")
     time.sleep(0.3)
     return f"Message sent to {receiver} via Instagram."
-
 
 def _send_messenger(receiver: str, message: str) -> str:
     _require_pyautogui()
@@ -486,14 +443,13 @@ def _send_messenger(receiver: str, message: str) -> str:
     time.sleep(0.3)
     return f"Message sent to {receiver} via Messenger."
 
-
 def _send_generic_web(platform: str, receiver: str, message: str) -> str:
     """Generic fallback: opens platform.com or platform web version."""
     domains = {
         "telegram": "https://web.telegram.org/",
         "whatsapp": "https://web.whatsapp.com/",
         "discord": "https://discord.com/app",
-        "signal": "https://signal.org/",  # no web client, maybe not
+        "signal": "https://signal.org/",                            
         "messenger": "https://www.messenger.com/",
         "instagram": "https://www.instagram.com/",
         "slack": "https://slack.com/signin",
@@ -504,15 +460,13 @@ def _send_generic_web(platform: str, receiver: str, message: str) -> str:
         url = f"https://www.{platform}.com/"
     if not _open_browser_url(url):
         return f"Could not open {platform} in browser."
-    # User may need to login, we can't automate further
+                                                       
     return (
         f"Opened {platform} in browser. Please send the message manually to {receiver}."
     )
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Platform mapping
-# ----------------------------------------------------------------------
 _PLATFORM_MAP: Dict[str, Callable[[str, str], str]] = {
     "whatsapp": _send_whatsapp,
     "wp": _send_whatsapp,
@@ -532,31 +486,27 @@ _PLATFORM_MAP: Dict[str, Callable[[str, str], str]] = {
     "skype": _send_skype,
 }
 
-
 def _resolve_platform(platform_str: str) -> Callable[[str, str], str]:
     """Resolve platform name to a handler; fallback to desktop send with original name."""
     key = platform_str.lower().strip()
     if key in _PLATFORM_MAP:
         return _PLATFORM_MAP[key]
-    # Partial match
+                   
     for alias, handler in _PLATFORM_MAP.items():
         if alias in key or key in alias:
             return handler
 
-    # If not found, treat as an app name and try generic desktop send
     def generic_send(receiver, message):
-        # First try the named app
+                                 
         if _open_app(key):
             return _desktop_send(key, receiver, message)
-        # Fallback to web
+                         
         return _send_generic_web(key, receiver, message)
 
     return generic_send
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Main controller (unchanged signature)
-# ----------------------------------------------------------------------
 def send_message(
     parameters: dict,
     response=None,
@@ -589,7 +539,7 @@ def send_message(
 
     try:
         handler = _resolve_platform(platform)
-        # Optional: run in a thread if we want non‑blocking? Keep synchronous for now.
+                                                                                      
         result = handler(receiver, message_text)
     except Exception as e:
         result = f"Could not send message: {e}"

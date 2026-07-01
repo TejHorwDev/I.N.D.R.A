@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 from __future__ import annotations
 
 import asyncio
@@ -41,23 +41,19 @@ except ImportError:
 from google import genai
 from google.genai import types as gtypes
 
-
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
-
 _BASE = _base_dir()
 _CONFIG_PATH = _BASE / "config" / "api_keys.json"
-
 
 def _load_config() -> dict:
     try:
         return json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}
-
 
 def _save_config_key(key: str, value) -> None:
     try:
@@ -66,7 +62,6 @@ def _save_config_key(key: str, value) -> None:
         _CONFIG_PATH.write_text(json.dumps(cfg, indent=4), encoding="utf-8")
     except Exception as e:
         print(f"[Vision] ⚠️  Could not save config key '{key}': {e}")
-
 
 def _get_api_key() -> str:
     cfg = _load_config()
@@ -77,10 +72,8 @@ def _get_api_key() -> str:
         raise RuntimeError("gemini_api_key not found in config.")
     return key
 
-
 def _get_os() -> str:
     return _load_config().get("os_system", "windows").lower()
-
 
 _LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 _CHANNELS = 1
@@ -100,7 +93,6 @@ _SYSTEM_PROMPT = (
     "Always call the appropriate tool; never simulate results."
 )
 
-
 def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]:
     if not _PIL:
         return img_bytes, f"image/{source_format.lower()}"
@@ -115,20 +107,18 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
         print(f"[Vision] ⚠️  Image compress failed: {e}")
         return img_bytes, f"image/{source_format.lower()}"
 
-
 def _capture_screen() -> tuple[bytes, str]:
 
     if not _MSS:
         raise RuntimeError("mss is not installed. Run: pip install mss")
 
     with mss.mss() as sct:
-        monitors = sct.monitors  # [0] = all combined, [1..n] = real screens
+        monitors = sct.monitors                                             
         target = monitors[1] if len(monitors) > 1 else monitors[0]
         shot = sct.grab(target)
         png = mss.tools.to_png(shot.rgb, shot.size)
 
     return _compress(png, "PNG")
-
 
 def _cv2_backend() -> int:
     """Return the best OpenCV camera backend for the current OS."""
@@ -140,7 +130,6 @@ def _cv2_backend() -> int:
     if os_name == "mac":
         return cv2.CAP_AVFOUNDATION
     return cv2.CAP_ANY
-
 
 def _probe_camera(index: int, backend: int, warmup: int = 5) -> bool:
 
@@ -158,7 +147,6 @@ def _probe_camera(index: int, backend: int, warmup: int = 5) -> bool:
         return False
     return bool(np.mean(frame) > 8)
 
-
 def _detect_camera_index() -> int:
 
     backend = _cv2_backend()
@@ -174,13 +162,11 @@ def _detect_camera_index() -> int:
     _save_config_key("camera_index", 0)
     return 0
 
-
 def _get_camera_index() -> int:
     cfg = _load_config()
     if "camera_index" in cfg:
         return int(cfg["camera_index"])
     return _detect_camera_index()
-
 
 def _capture_camera() -> tuple[bytes, str]:
     if not _CV2:
@@ -215,7 +201,6 @@ def _capture_camera() -> tuple[bytes, str]:
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, _JPEG_Q])
     return buf.tobytes(), "image/jpeg"
 
-
 def screen_process(
     parameters: dict,
     response=None,
@@ -246,31 +231,43 @@ def screen_process(
         return f"Failed to capture image: {e}"
 
     print("[Vision] 🔌 Analyzing via Gemini REST API...")
-    try:
-        client = genai.Client(
-            api_key=_get_api_key(),
-            http_options={"api_version": "v1beta"},
-        )
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                gtypes.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                user_text
-            ],
-            config=gtypes.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT
+    client = genai.Client(
+        api_key=_get_api_key(),
+        http_options={"api_version": "v1beta"},
+    )
+    
+    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    last_err = None
+    
+    for attempt, m_name in enumerate(models_to_try, 1):
+        try:
+            if attempt > 1:
+                print(f"[Vision] ⚠️ Retrying... (Attempt {attempt}, Model: {m_name})")
+                time.sleep(1.5)
+            
+            res = client.models.generate_content(
+                model=m_name,
+                contents=[
+                    gtypes.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    user_text
+                ],
+                config=gtypes.GenerateContentConfig(
+                    system_instruction=_SYSTEM_PROMPT
+                )
             )
-        )
-        text_result = res.text or "I could not analyze the image clearly."
-        print(f"[Vision] 👁️ Result: {text_result}")
-        return text_result
-    except Exception as e:
-        print(f"[Vision] ❌ Analysis error: {e}")
-        return f"Failed to analyze image: {e}"
+            text_result = res.text or "I could not analyze the image clearly."
+            print(f"[Vision] 👁️ Result: {text_result}")
+            return text_result
+        except Exception as e:
+            last_err = e
+            if "503" not in str(e) and "429" not in str(e):
+                break
+                
+    print(f"[Vision] 💥 Analysis error: {last_err}")
+    return f"Failed to analyze image: {last_err}"
 
 def warmup_session(player=None) -> None:
     pass
-
 
 if __name__ == "__main__":
     print("[TEST] screen_processor.py")

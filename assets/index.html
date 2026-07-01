@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Particle Orb</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=vayu">
 </head>
 <body>
 
@@ -17,6 +17,13 @@
     <div id="aiStateText" style="position: absolute; bottom: 10%; color: rgba(214,205,235,0.9); font-family: monospace; font-size: 20px; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 10px rgba(196,186,224,0.55); pointer-events: none;">STARTING</div>
   </main>
 
-  <script src="script.js"></script>
+  <script>
+    window.setMapMode = function(enabled) {
+      document.getElementById('stars').style.display = enabled ? 'none' : 'block';
+      document.getElementById('aiStateText').style.display = enabled ? 'none' : 'block';
+      document.getElementById('orbHalo').style.display = enabled ? 'none' : 'block';
+    };
+  </script>
+  <script src="script.js?v=vayu19"></script>
 </body>
 </html>

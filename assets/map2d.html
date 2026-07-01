@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>INDRA 2D Detailed Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* Hide Leaflet attribution for cleaner aesthetic */
+    .leaflet-control-attribution {
+      display: none !important;
+    }
+    .leaflet-control-zoom {
+      display: none !important; /* Hide zoom buttons */
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Initialize map
+    const map = L.map('map', {
+      center: [20, 0],
+      zoom: 3,
+      zoomControl: false // Disable default zoom control
+    });
+
+    // Add Esri World Imagery (High-Res Satellite)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 17,
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+
+    window.addEventListener('resize', () => {
+      map.invalidateSize();
+    });
+
+    window.INDRA = {
+      flyTo: function(target) {
+        if (!target) return;
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(target)}&format=json&limit=1`;
+        fetch(url, { headers: { 'User-Agent': 'INDRA-AI-Assistant' } })
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              const bb = data[0].boundingbox; // [latMin, latMax, lonMin, lonMax]
+              const bounds = [
+                [parseFloat(bb[0]), parseFloat(bb[2])],
+                [parseFloat(bb[1]), parseFloat(bb[3])]
+              ];
+              map.flyToBounds(bounds, {
+                animate: true,
+                duration: 2.0,
+                easeLinearity: 0.25,
+                padding: [50, 50]
+              });
+            } else {
+              console.log(`Could not locate: ${target}`);
+            }
+          })
+          .catch(err => console.error("Geocoding error:", err));
+      }
+    };
+
+    // Auto-fly to country if specified in URL query
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('q');
+    if (target) {
+        // Wait a small moment for map to initialize before flying
+        setTimeout(() => {
+            window.INDRA.flyTo(target);
+        }, 500);
+    }
+  </script>
+</body>
+</html>

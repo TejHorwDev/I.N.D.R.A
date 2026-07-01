@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>I.N.D.R.A. — Initial Setup (Ultra Premium)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap');
+
+    :root {
+      --bg: #030303;
+      --surface: rgba(20, 20, 22, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(255, 255, 255, 0.3);
+      --text-hi: #ffffff;
+      --text-mid: #a1a1a6;
+      --text-low: #6e6e73;
+      --font-main: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      /* Subtle, expensive-looking radial light from the top */
+      background-image: radial-gradient(ellipse 800px 600px at 50% -20%, rgba(255,255,255,0.08), transparent 70%);
+      color: var(--text-hi);
+      font-family: var(--font-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient soft background noise to simulate physical screen texture */
+    body::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Premium Frosted Glass Card */
+    .card {
+      position: relative;
+      z-index: 10;
+      width: 420px;
+      background: var(--surface);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 44px 40px;
+      box-shadow: 
+        0 30px 60px rgba(0,0,0,0.8),
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        inset 0 -1px 0 rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      animation: floatUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform: translateY(20px);
+      opacity: 0;
+    }
+
+    @keyframes floatUp {
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+    }
+
+    /* Extremely clean, monolithic logo */
+    .logo {
+      width: 64px; height: 64px;
+      margin: 0 auto 20px;
+      border-radius: 16px;
+      display: block;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+      animation: gentleFloat 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes gentleFloat {
+      0% { transform: translateY(0); filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); }
+      100% { transform: translateY(-4px); filter: drop-shadow(0 15px 20px rgba(0,0,0,0.6)); }
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-mid);
+      font-weight: 400;
+    }
+
+    /* Input Field */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-mid);
+      display: flex;
+      justify-content: space-between;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      color: var(--text-hi);
+      font-size: 14px;
+      font-family: var(--font-mono);
+      outline: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    input::placeholder { color: var(--text-low); font-family: var(--font-main); letter-spacing: 0; }
+
+    input:focus {
+      border-color: var(--border-focus);
+      background: rgba(255,255,255,0.04);
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.05), inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    /* Segmented Control (OS Selection) */
+    .segmented-control {
+      display: flex;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 5px;
+      gap: 5px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    .segment-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 0;
+      color: var(--text-mid);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .segment-btn:hover { color: var(--text-hi); background: rgba(255,255,255,0.02); }
+
+    .segment-btn.active {
+      background: rgba(255,255,255,0.12);
+      color: var(--text-hi);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+
+    /* Submit Button */
+    .submit-btn {
+      width: 100%;
+      background: var(--text-hi);
+      color: #000;
+      border: none;
+      border-radius: 14px;
+      padding: 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255,255,255,0.2);
+    }
+
+    .submit-btn:active { transform: scale(0.98); }
+
+    .submit-btn svg { transition: transform 0.2s; }
+    .submit-btn:hover svg { transform: translateX(4px); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <img class="logo" src="logo/logo.png" alt="INDRA Logo" />
+      <div class="title">System Initialization</div>
+      <div class="subtitle">Authenticate to boot I.N.D.R.A.</div>
+    </div>
+
+    <div class="field">
+      <div class="label">
+        <span>API Key</span>
+        <span style="color: var(--text-low);">Encrypted</span>
+      </div>
+      <div class="input-wrapper">
+        <input type="password" placeholder="Enter Gemini Token" />
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <span class="hint">Stored locally in encrypted vault.</span>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--text-hi); font-size: 11px; text-decoration: none; opacity: 0.7; transition: opacity 0.2s; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 1px;">Get a key &rarr;</a>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="label">
+        <span>Host Environment</span>
+      </div>
+      <div class="segmented-control">
+        <button class="segment-btn active">Windows</button>
+        <button class="segment-btn">macOS</button>
+        <button class="segment-btn">Linux</button>
+      </div>
+    </div>
+
+    <button class="submit-btn">
+      Initialize System
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </button>
+  </div>
+</body>
+</html>

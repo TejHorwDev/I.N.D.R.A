@@ -1,6 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
-# flight_finder.py — Enhanced Flight Search Engine
+                     
+
 import json
 import re
 import subprocess
@@ -11,7 +10,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Try to import dateparser for super‑fast date recognition (optional)
 try:
     import dateparser
 
@@ -19,33 +17,26 @@ try:
 except ImportError:
     _HAS_DATEPARSER = False
 
-
-# Platform detection (re‑used from config)
+                                          
 def _is_windows():
     return sys.platform.startswith("win")
-
 
 def _is_mac():
     return sys.platform.startswith("darwin")
 
-
 def _is_linux():
     return sys.platform.startswith("linux")
 
-
-# ───────────────────────────── Configuration ─────────────────────────────
+                                                                           
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
-
 BASE_DIR = _get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 
-# Cache API key to avoid repeated file I/O
 _API_KEY_CACHE = None
-
 
 def _get_api_key() -> str:
     global _API_KEY_CACHE
@@ -54,23 +45,19 @@ def _get_api_key() -> str:
             _API_KEY_CACHE = json.load(f)["gemini_api_key"]
     return _API_KEY_CACHE
 
-
-# Cabin mapping (Google Flights internal codes)
+                                               
 _CABIN_CODE = {"economy": "1", "premium": "2", "business": "3", "first": "4"}
 
-
-# ─────────────────────────── Date Parser (Multi‑Strategy) ─────────────────
+                                                                            
 def _parse_date(raw: str) -> str:
     """Parse any human‑readable date into YYYY‑MM‑DD using local logic + AI fallback."""
     raw = raw.strip()
     if not raw:
         return datetime.now().strftime("%Y-%m-%d")
 
-    # Already in perfect format?
     if re.match(r"\d{4}-\d{2}-\d{2}$", raw):
         return raw
 
-    # Known numeric patterns
     for fmt in (
         "%d/%m/%Y",
         "%m/%d/%Y",
@@ -85,7 +72,6 @@ def _parse_date(raw: str) -> str:
         except ValueError:
             continue
 
-    # Relative dates (today, tomorrow)
     lower = raw.lower()
     today = datetime.now()
     if lower in ("today", "bugün"):
@@ -93,7 +79,6 @@ def _parse_date(raw: str) -> str:
     if lower in ("tomorrow", "yarın"):
         return (today + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # ── dateparser (fast, offline) ──
     if _HAS_DATEPARSER:
         try:
             parsed = dateparser.parse(raw, settings={"PREFER_DATES_FROM": "future"})
@@ -102,7 +87,6 @@ def _parse_date(raw: str) -> str:
         except Exception:
             pass
 
-    # ── Named months (English + Turkish) with day number ──
     _MONTH_MAP = {
         "january": 1,
         "february": 2,
@@ -137,7 +121,6 @@ def _parse_date(raw: str) -> str:
                 year = today.year if num >= today.month else today.year + 1
                 return f"{year}-{num:02d}-{day:02d}"
 
-    # ── AI fallback (Gemini) ──
     try:
         from google import genai as _genai
 
@@ -156,12 +139,10 @@ def _parse_date(raw: str) -> str:
     except Exception as e:
         print(f"[FlightFinder] ⚠️ Gemini date parse failed: {e}")
 
-    # ── Last resort ──
     print(f"[FlightFinder] ⚠️ Could not parse date '{raw}' — using today.")
     return today.strftime("%Y-%m-%d")
 
-
-# ─────────────────────── URL Builder (Proper Encoding) ────────────────────
+                                                                            
 def _build_google_flights_url(
     origin: str,
     destination: str,
@@ -175,11 +156,10 @@ def _build_google_flights_url(
     Build a Google Flights URL with pre‑filled search parameters.
     Uses `q` for the flight string and adds `curr`, `cabin`, `adults`.
     """
-    # Clean airport codes (remove spaces, uppercase)
+                                                    
     origin = origin.strip().upper()
     destination = destination.strip().upper()
 
-    # Build the human‑readable query string (Google parses this)
     if return_date:
         trip_str = (
             f"Flights from {origin} to {destination} on {date} returning {return_date}"
@@ -187,11 +167,10 @@ def _build_google_flights_url(
     else:
         trip_str = f"Flights from {origin} to {destination} on {date}"
 
-    # URL‑encode the query (the `q` parameter is what Google uses)
     encoded_q = urllib.parse.quote(trip_str)
 
     base_url = "https://www.google.com/travel/flights"
-    # Additional parameters for cabin, adults, currency (note: `curr` might not work on all pages but helps)
+                                                                                                            
     params = {
         "q": encoded_q,
         "curr": currency.upper(),
@@ -199,15 +178,13 @@ def _build_google_flights_url(
         "adults": str(passengers),
     }
     if return_date:
-        # Actually the return date is part of the q string, no separate param needed
+                                                                                    
         pass
 
-    # Build full URL with query string
     query_string = urllib.parse.urlencode(params)
     return f"{base_url}?{query_string}"
 
-
-# ───────────────────────── Browser Interaction ────────────────────────────
+                                                                            
 def _search_flights_browser(
     origin: str,
     destination: str,
@@ -227,44 +204,39 @@ def _search_flights_browser(
     )
     print(f"[FlightFinder] 🌐 Opening: {url}")
 
-    # Navigate
     browser_control({"action": "go_to", "url": url})
 
-    # Wait for flight results to load (multiple attempts)
     max_attempts = 10
     raw_text = ""
     for attempt in range(1, max_attempts + 1):
         time.sleep(2)
-        # Check if the page contains typical flight result indicators
+                                                                     
         raw_text = browser_control({"action": "get_text"})
         if "Showing" in raw_text or "from" in raw_text.lower():
             break
         if attempt % 3 == 0:
-            # Refresh or scroll down a bit to trigger loading
+                                                             
             browser_control(
                 {"action": "execute_script", "script": "window.scrollBy(0, 300);"}
             )
     else:
-        # Last resort: try to get the page text even if incomplete
+                                                                  
         print("[FlightFinder] ⚠️ Results may not have fully loaded.")
 
     return raw_text, url
 
-
-# ──────────────────────── Flight Data Extraction ──────────────────────────
-# Pre‑compiled regex patterns for rule‑based fallback
+                                                                            
+                                                     
 _RE_PRICE = re.compile(r"\$\s?([\d,]+(?:\.\d{2})?)")
 _RE_TIME = re.compile(r"(\d{1,2}:\d{2}\s?[APap][Mm])")
 _RE_DURATION = re.compile(r"(\d+\s?h\s?\d+\s?m)")
 _RE_STOPS = re.compile(r"(\d+)\s?stop", re.IGNORECASE)
 _RE_AIRLINE = re.compile(r"([\w\s]+)\s+flight", re.IGNORECASE)
 
-
 def _fallback_parse(raw_text: str) -> List[Dict]:
     """Rule‑based extraction of flight data as fallback if AI fails."""
     flights = []
-    # Simplistic: find blocks that look like a flight listing
-    # Normally Gemini is far better, this is a safety net.
+
     lines = raw_text.splitlines()
     current = {}
     for line in lines:
@@ -276,25 +248,25 @@ def _fallback_parse(raw_text: str) -> List[Dict]:
                 if len(flights) >= 5:
                     break
             continue
-        # Try to extract price
+                              
         price_match = _RE_PRICE.search(line)
         if price_match:
             current["price"] = price_match.group(1).replace(",", "")
             current["currency"] = "USD"
-        # Airline
+                 
         airline_match = _RE_AIRLINE.search(line)
         if airline_match and "airline" not in current:
             current["airline"] = airline_match.group(1).strip()
-        # Times
+               
         times = _RE_TIME.findall(line)
         if len(times) >= 2:
             current["departure"] = times[0]
             current["arrival"] = times[-1]
-        # Duration
+                  
         dur_match = _RE_DURATION.search(line)
         if dur_match:
             current["duration"] = dur_match.group(1)
-        # Stops
+               
         stop_match = _RE_STOPS.search(line)
         if stop_match:
             current["stops"] = int(stop_match.group(1))
@@ -304,13 +276,11 @@ def _fallback_parse(raw_text: str) -> List[Dict]:
     if current:
         flights.append(current)
 
-    # Clean up incomplete entries
     valid = []
     for f in flights:
         if f.get("price") and f.get("airline"):
             valid.append(f)
     return valid[:5]
-
 
 def _parse_flights_with_gemini(
     raw_text: str, origin: str, destination: str, date: str
@@ -343,7 +313,7 @@ def _parse_flights_with_gemini(
             ),
         )
         text = response.text.strip()
-        # Remove markdown code fences
+                                     
         text = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
         flights = json.loads(text)
         if isinstance(flights, list):
@@ -351,12 +321,10 @@ def _parse_flights_with_gemini(
     except Exception as e:
         print(f"[FlightFinder] ⚠️ Gemini parse failed: {e}")
 
-    # Fallback to rule‑based
     print("[FlightFinder] ⚡ Falling back to rule‑based extraction.")
     return _fallback_parse(raw_text)
 
-
-# ──────────────────────── Formatting & Output ────────────────────────────
+                                                                           
 def _format_spoken(
     flights: List[Dict], origin: str, destination: str, date: str
 ) -> str:
@@ -385,7 +353,6 @@ def _format_spoken(
             f"{stop_str}, {price_str}."
         )
 
-    # Find cheapest
     priced = [f for f in flights if f.get("price")]
     if priced:
         cheapest = min(
@@ -398,7 +365,6 @@ def _format_spoken(
         )
 
     return " ".join(lines)
-
 
 def _format_text_report(
     flights: List[Dict],
@@ -444,7 +410,6 @@ def _format_text_report(
 
     return "\n".join(lines)
 
-
 def _save_to_desktop(content: str, origin: str, destination: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"flights_{origin}_{destination}_{ts}.txt".replace(" ", "_")
@@ -454,7 +419,6 @@ def _save_to_desktop(content: str, origin: str, destination: str) -> str:
     filepath.write_text(content, encoding="utf-8")
     print(f"[FlightFinder] 💾 Saved: {filepath}")
 
-    # Open the file with default text editor
     try:
         if _is_windows():
             subprocess.Popen(["notepad.exe", str(filepath)])
@@ -467,16 +431,14 @@ def _save_to_desktop(content: str, origin: str, destination: str) -> str:
 
     return str(filepath)
 
-
-# ──────────────────────── Price Trend / Alert (New) ──────────────────────
-# (Optional: these can be called by the controller with action="price_alert")
+                                                                           
+                                                                             
 def _add_price_alert(parameters: dict, player=None) -> str:
     """Placeholder for future price tracking integration."""
-    # Would store route + target price in a file and check periodically.
+                                                                        
     return "Price alert feature is under development."
 
-
-# ──────────────────────────── Main Controller ────────────────────────────
+                                                                           
 def flight_finder(parameters: dict, player=None, speak=None) -> str:
     """
     INDRA Flight Finder Controller – unchanged signature.
@@ -485,11 +447,9 @@ def flight_finder(parameters: dict, player=None, speak=None) -> str:
     params = parameters or {}
     action = params.get("action", "search").lower().strip()
 
-    # ── Quick action routing ──
     if action == "price_alert":
         return _add_price_alert(params, player)
 
-    # ── Default: search flights ──
     origin = params.get("origin", "").strip()
     destination = params.get("destination", "").strip()
     date_raw = params.get("date", "").strip()
@@ -498,7 +458,7 @@ def flight_finder(parameters: dict, player=None, speak=None) -> str:
     cabin = params.get("cabin", "economy").strip().lower()
     currency = params.get("currency", "USD").strip().upper()
     save = bool(params.get("save", False))
-    max_price = params.get("max_price")  # optional filter
+    max_price = params.get("max_price")                   
 
     if not origin or not destination:
         return "Please provide both origin and destination, sir."
@@ -539,7 +499,6 @@ def flight_finder(parameters: dict, player=None, speak=None) -> str:
 
         flights = _parse_flights_with_gemini(raw_text, origin, destination, date)
 
-        # Optional max price filter
         if max_price and flights:
             max_price = float(max_price)
             flights = [

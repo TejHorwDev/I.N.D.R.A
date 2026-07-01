@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INDRA · ATLAS PRO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #04060a;
+  --panel-bg: rgba(6,10,16,0.88);
+  --ink: #e2edf5;
+  --ink-dim: #6a839a;
+  --ink-muted: #3d5569;
+  --cyan: #2ee8ff;
+  --cyan2: #0faacc;
+  --gold: #d4af37;
+  --gold-dim: rgba(212,175,55,0.3);
+  --crimson: #ff4466;
+  --green: #22dd88;
+  --amber: #f0a030;
+  --glass: rgba(4,10,18,0.82);
+  --border: rgba(46,232,255,0.12);
+  --border-hot: rgba(46,232,255,0.45);
+  --shadow: 0 8px 48px rgba(0,0,0,0.7);
+  --display: 'Rajdhani', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --body: 'Space Grotesk', sans-serif;
+  --r: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); overflow: hidden; }
+body { font-family: var(--mono); color: var(--ink); }
+
+/* ─── MAP ─────────────────────────────────────────────── */
+#map { position: absolute; inset: 0; z-index: 0; }
+
+/* ─── SCANLINE OVERLAY ────────────────────────────────── */
+#scanlines {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+#vignette {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.55) 100%);
+}
+
+/* ─── HUD LAYER ───────────────────────────────────────── */
+.hud { position: absolute; z-index: 10; }
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-radius: var(--r);
+}
+
+/* ─── TOP BAR ─────────────────────────────────────────── */
+#topbar {
+  top: 0; left: 0; right: 0; height: 52px;
+  background: linear-gradient(180deg, rgba(4,6,10,0.95) 0%, rgba(4,6,10,0) 100%);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 20px; padding: 0 20px;
+  backdrop-filter: blur(8px);
+}
+#brand { display: flex; align-items: center; gap: 10px; }
+#brand svg { width: 18px; height: 18px; }
+#brand .title { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .22em; color: var(--cyan); text-transform: uppercase; }
+#brand .ver { font-size: 9px; color: var(--ink-dim); letter-spacing: .1em; margin-left: 4px; padding: 2px 5px; border: 1px solid var(--ink-muted); border-radius: 3px; }
+.top-divider { width: 1px; height: 22px; background: var(--border); }
+#coords-bar { font-size: 11px; color: var(--ink-dim); letter-spacing: .06em; }
+#coords-bar span { color: var(--cyan); }
+.top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.layer-btn {
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--border);
+  color: var(--ink-dim); background: transparent; font-family: var(--mono);
+  transition: all .2s;
+}
+.layer-btn:hover, .layer-btn.active { color: var(--cyan); border-color: var(--cyan2); background: rgba(46,232,255,0.08); }
+#clock { font-size: 11px; color: var(--ink-dim); letter-spacing: .12em; }
+#clock span { color: var(--ink); }
+
+/* ─── SEARCH BAR ──────────────────────────────────────── */
+#search-wrap {
+  bottom: 28px; left: 50%; transform: translateX(-50%);
+  width: min(500px, 90vw);
+}
+#search-box {
+  display: flex; align-items: center; gap: 0;
+  background: rgba(4,8,14,0.92); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  backdrop-filter: blur(20px); box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+  transition: border-color .25s;
+}
+#search-box:focus-within { border-color: var(--cyan2); }
+#search-prefix { padding: 0 12px; color: var(--cyan); font-size: 14px; font-family: var(--mono); }
+#search-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-family: var(--mono); color: var(--ink); font-size: 13px; padding: 13px 0;
+}
+#search-input::placeholder { color: var(--ink-muted); }
+#search-go {
+  padding: 13px 18px; background: rgba(46,232,255,0.1); border: none; border-left: 1px solid var(--border);
+  color: var(--cyan); font-family: var(--display); font-weight: 600; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: background .2s;
+}
+#search-go:hover { background: rgba(46,232,255,0.2); }
+#autocomplete {
+  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  background: var(--glass); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; display: none; backdrop-filter: blur(20px);
+}
+#autocomplete.show { display: block; }
+.ac-item { padding: 9px 16px; font-size: 12px; color: var(--ink-dim); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background .15s; }
+.ac-item:hover, .ac-item.selected { background: rgba(46,232,255,0.08); color: var(--ink); }
+.ac-region { font-size: 10px; color: var(--ink-muted); }
+#search-echo { text-align: center; font-size: 11px; color: var(--gold); letter-spacing: .06em; margin-top: 8px; min-height: 16px; }
+
+/* ─── LEFT PANEL ──────────────────────────────────────── */
+#left-panel {
+  top: 64px; left: 16px; width: 220px;
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.panel-head {
+  font-family: var(--display); font-size: 10px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--ink-dim); margin-bottom: 4px;
+}
+.stat-row { display: flex; justify-content: space-between; align-items: baseline; }
+.stat-label { font-size: 10px; color: var(--ink-muted); letter-spacing: .08em; }
+.stat-val { font-size: 12px; color: var(--ink); }
+.stat-val.cyan { color: var(--cyan); }
+.stat-val.gold { color: var(--gold); }
+.stat-val.green { color: var(--green); }
+.stat-val.amber { color: var(--amber); }
+.divider { height: 1px; background: var(--border); margin: 2px 0; }
+.mini-legend { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-dim); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ─── RIGHT COUNTRY PANEL ─────────────────────────────── */
+#country-panel {
+  top: 64px; right: 16px; width: 280px;
+  opacity: 0; transform: translateX(20px) scale(0.97);
+  transition: opacity .35s, transform .35s;
+  pointer-events: none;
+}
+#country-panel.show { opacity: 1; transform: translateX(0) scale(1); pointer-events: all; }
+#cp-header { padding: 16px 16px 0; }
+#cp-flag { font-size: 32px; margin-bottom: 6px; }
+#cp-name { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: .02em; line-height: 1.1; }
+#cp-region { font-size: 11px; color: var(--ink-dim); margin-top: 2px; letter-spacing: .08em; }
+#cp-tabs { display: flex; gap: 0; margin-top: 14px; border-bottom: 1px solid var(--border); padding: 0 16px; }
+.cp-tab { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 7px 12px 7px 0; cursor: pointer; color: var(--ink-muted); border-bottom: 2px solid transparent; transition: all .2s; margin-bottom: -1px; }
+.cp-tab.active { color: var(--cyan); border-color: var(--cyan); }
+#cp-body { padding: 14px 16px 16px; max-height: 400px; overflow-y: auto; }
+#cp-body::-webkit-scrollbar { width: 3px; }
+#cp-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.cp-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(46,232,255,0.05); }
+.cp-key { font-size: 10px; color: var(--ink-muted); letter-spacing: .06em; }
+.cp-val { font-size: 12px; color: var(--ink); text-align: right; max-width: 160px; }
+.cp-val.accent { color: var(--cyan); }
+.cp-val.gold { color: var(--gold); }
+.bar-row { margin: 8px 0; }
+.bar-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-dim); margin-bottom: 4px; }
+.bar-track { height: 3px; background: rgba(46,232,255,0.08); border-radius: 2px; }
+.bar-fill { height: 100%; border-radius: 2px; }
+#cp-close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--ink-muted); cursor: pointer; font-size: 16px; padding: 4px; transition: color .2s; }
+#cp-close:hover { color: var(--ink); }
+
+/* ─── SCALE + STATUS ──────────────────────────────────── */
+#map-status {
+  bottom: 80px; right: 16px;
+  font-size: 10px; color: var(--ink-muted); letter-spacing: .08em; text-align: right;
+  line-height: 1.8;
+}
+#map-status .zoom-val { color: var(--cyan); }
+
+/* ─── LOADING VEIL ────────────────────────────────────── */
+#veil {
+  position: fixed; inset: 0; background: var(--bg); z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px; transition: opacity .8s ease;
+}
+.veil-glyph svg { width: 48px; height: 48px; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:.4;transform:scale(.97)} 50%{opacity:1;transform:scale(1.03)} }
+.veil-text { font-family: var(--display); letter-spacing: .35em; font-size: 13px; color: var(--cyan); text-transform: uppercase; }
+.veil-sub { font-size: 10px; color: var(--ink-muted); letter-spacing: .15em; }
+.veil-bar { width: 200px; height: 2px; background: rgba(46,232,255,0.1); border-radius: 1px; overflow: hidden; }
+.veil-progress { height: 100%; background: linear-gradient(90deg, var(--cyan2), var(--cyan)); width: 0%; transition: width .4s; border-radius: 1px; }
+
+/* ─── CITY TOOLTIP ────────────────────────────────────── */
+.city-tooltip {
+  position: absolute; pointer-events: none; z-index: 20;
+  background: var(--glass); border: 1px solid var(--border);
+  padding: 6px 10px; border-radius: 6px; backdrop-filter: blur(12px);
+  font-size: 11px; color: var(--ink); white-space: nowrap;
+  transform: translate(-50%, -120%); transition: opacity .15s;
+  opacity: 0;
+}
+.city-tooltip.show { opacity: 1; }
+
+/* ─── MINI COMPASS ────────────────────────────────────── */
+#compass {
+  bottom: 80px; left: 16px; width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+}
+#compass svg { width: 52px; height: 52px; }
+
+/* ─── LAYER TOGGLE PANEL ──────────────────────────────── */
+#layers-panel {
+  top: 64px; left: 16px; width: 220px;
+  display: none;
+}
+#layers-panel.show { display: block; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(46,232,255,0.05); }
+.toggle-row:last-child { border: none; }
+.toggle-label { font-size: 11px; color: var(--ink-dim); }
+.toggle-switch { position: relative; width: 32px; height: 18px; cursor: pointer; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; background: var(--border); border-radius: 9px; transition: background .2s; }
+.toggle-track::after { content: ''; position: absolute; width: 12px; height: 12px; background: var(--ink-muted); border-radius: 50%; top: 3px; left: 3px; transition: transform .2s, background .2s; }
+input:checked + .toggle-track { background: rgba(46,232,255,0.25); }
+input:checked + .toggle-track::after { transform: translateX(14px); background: var(--cyan); }
+
+/* ─── NOTIFICATION TOASTS ─────────────────────────────── */
+#toast-stack { top: 60px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.toast {
+  background: rgba(4,8,14,0.94); border-radius: 7px; padding: 8px 16px;
+  font-size: 11px; letter-spacing: .06em; color: var(--ink-dim);
+  border-left: 3px solid var(--cyan); white-space: nowrap;
+  animation: toastIn .25s ease; backdrop-filter: blur(12px);
+}
+.toast.gold { border-color: var(--gold); }
+@keyframes toastIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+.toast.out { animation: toastOut .3s ease forwards; }
+@keyframes toastOut { to{opacity:0;transform:translateY(-8px)} }
+
+/* ─── QUICK FACTS STRIP ───────────────────────────────── */
+#facts-strip {
+  bottom: 0; left: 0; right: 0; height: 26px;
+  background: rgba(4,6,10,0.9); border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; overflow: hidden;
+  font-size: 10px; color: var(--ink-muted); letter-spacing: .08em;
+}
+.fact-item { padding: 0 20px; border-right: 1px solid var(--border); white-space: nowrap; }
+.fact-item span { color: var(--ink-dim); }
+.fact-item .fact-val { color: var(--cyan2); }
+
+/* ─── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ─── RESPONSIVE ──────────────────────────────────────── */
+@media (max-width: 700px) {
+  #left-panel, #compass { display: none; }
+  #country-panel { width: calc(100vw - 32px); right: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<!-- VEIL -->
+<div id="veil">
+  <div class="veil-glyph">
+    <svg viewBox="0 0 48 48" fill="none">
+      <path d="M24 4L28 20L44 16L28 24L40 40L24 28L8 40L20 24L4 16L20 20Z" fill="#d4af37"/>
+      <circle cx="24" cy="24" r="10" stroke="#2ee8ff" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/>
+    </svg>
+  </div>
+  <div class="veil-text">INDRA · ATLAS PRO</div>
+  <div class="veil-sub">Loading terrain intelligence</div>
+  <div class="veil-bar"><div class="veil-progress" id="veil-prog"></div></div>
+</div>
+
+<!-- TOP BAR -->
+<div class="hud" id="topbar">
+  <div id="brand">
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L14.5 9.5L22 7L13 12L19.5 22L12 15L4.5 22L11 12L2 7L9.5 9.5Z" fill="#d4af37"/>
+    </svg>
+    <span class="title">Indra · Atlas</span>
+    <span class="ver">PRO</span>
+  </div>
+  <div class="top-divider"></div>
+  <div id="coords-bar">lat <span id="cur-lat">—</span> lng <span id="cur-lng">—</span> · zoom <span id="cur-zoom">—</span></div>
+  <div class="top-right">
+    <button class="layer-btn active" onclick="switchBase('satellite')" id="btn-sat">Satellite</button>
+    <button class="layer-btn" onclick="switchBase('terrain')" id="btn-ter">Terrain</button>
+    <button class="layer-btn" onclick="switchBase('dark')" id="btn-dark">Dark</button>
+    <div class="top-divider"></div>
+    <div id="clock">UTC <span id="utc-time">—</span></div>
+  </div>
+</div>
+
+<!-- LEFT PANEL -->
+<div class="hud glass" id="left-panel">
+  <div class="panel-head">ATLAS OVERVIEW</div>
+  <div class="stat-row"><span class="stat-label">COUNTRIES</span><span class="stat-val cyan">195</span></div>
+  <div class="stat-row"><span class="stat-label">TERRITORIES</span><span class="stat-val">70+</span></div>
+  <div class="stat-row"><span class="stat-label">CITIES INDEXED</span><span class="stat-val">2,400+</span></div>
+  <div class="divider"></div>
+  <div class="panel-head">SELECTED</div>
+  <div class="stat-row"><span class="stat-label">COUNTRY</span><span class="stat-val gold" id="sel-name">—</span></div>
+  <div class="stat-row"><span class="stat-label">POPULATION</span><span class="stat-val" id="sel-pop">—</span></div>
+  <div class="stat-row"><span class="stat-label">AREA km²</span><span class="stat-val" id="sel-area">—</span></div>
+  <div class="stat-row"><span class="stat-label">GDP USD</span><span class="stat-val" id="sel-gdp">—</span></div>
+  <div class="stat-row"><span class="stat-label">CAPITAL</span><span class="stat-val" id="sel-capital">—</span></div>
+  <div class="divider"></div>
+  <div class="panel-head">TERRAIN LAYERS</div>
+  <div class="toggle-row">
+    <span class="toggle-label">Country borders</span>
+    <label class="toggle-switch"><input type="checkbox" id="tog-borders" checked onchange="toggleLayer('borders',this)"><span class="toggle-track"></span></label>
+  </div>
+  <div class="toggle-row">
+    <span class="toggle-label">Major cities</span>
+    <label class="toggle-switch"><input type="checkbox" id="tog-cities" checked onchange="toggleLayer('cities',this)"><span class="toggle-track"></span></label>
+  </div>
+  <div class="toggle-row">
+    <span class="toggle-label">Capital cities</span>
+    <label class="toggle-switch"><input type="checkbox" id="tog-capitals" onchange="toggleLayer('capitals',this)"><span class="toggle-track"></span></label>
+  </div>
+  <div class="toggle-row">
+    <span class="toggle-label">Graticule grid</span>
+    <label class="toggle-switch"><input type="checkbox" id="tog-grid" onchange="toggleLayer('grid',this)"><span class="toggle-track"></span></label>
+  </div>
+</div>
+
+<!-- COUNTRY PANEL -->
+<div class="hud glass" id="country-panel">
+  <button id="cp-close" onclick="closeCountryPanel()">✕</button>
+  <div id="cp-header">
+    <div id="cp-flag"></div>
+    <div id="cp-name">—</div>
+    <div id="cp-region">—</div>
+  </div>
+  <div id="cp-tabs">
+    <span class="cp-tab active" onclick="cpTab(this,'overview')">Overview</span>
+    <span class="cp-tab" onclick="cpTab(this,'geo')">Geography</span>
+    <span class="cp-tab" onclick="cpTab(this,'economy')">Economy</span>
+    <span class="cp-tab" onclick="cpTab(this,'people')">People</span>
+  </div>
+  <div id="cp-body"></div>
+</div>
+
+<!-- SEARCH -->
+<div class="hud" id="search-wrap">
+  <div id="autocomplete"></div>
+  <div id="search-box">
+    <span id="search-prefix">&gt;_</span>
+    <input id="search-input" type="text" autocomplete="off" spellcheck="false" placeholder="search any country, city, or coordinates…">
+    <button id="search-go" onclick="doSearch()">Locate</button>
+  </div>
+  <div id="search-echo"></div>
+</div>
+
+<!-- STATUS + COMPASS -->
+<div class="hud" id="map-status">
+  <div>Zoom <span class="zoom-val" id="stat-zoom">—</span></div>
+</div>
+
+<div class="hud" id="compass">
+  <svg viewBox="0 0 52 52" fill="none">
+    <circle cx="26" cy="26" r="24" stroke="rgba(46,232,255,0.12)" stroke-width="1"/>
+    <circle cx="26" cy="26" r="20" stroke="rgba(46,232,255,0.07)" stroke-width="1"/>
+    <line x1="26" y1="6" x2="26" y2="16" stroke="rgba(46,232,255,0.5)" stroke-width="1.5"/>
+    <line x1="26" y1="36" x2="26" y2="46" stroke="rgba(46,232,255,0.2)" stroke-width="1"/>
+    <line x1="6" y1="26" x2="16" y2="26" stroke="rgba(46,232,255,0.2)" stroke-width="1"/>
+    <line x1="36" y1="26" x2="46" y2="26" stroke="rgba(46,232,255,0.2)" stroke-width="1"/>
+    <text x="26" y="5" text-anchor="middle" font-size="6" fill="#2ee8ff" font-family="Rajdhani">N</text>
+    <text x="26" y="50" text-anchor="middle" font-size="5" fill="rgba(46,232,255,0.4)" font-family="Rajdhani">S</text>
+    <polygon points="26,14 24,26 26,22 28,26" fill="#2ee8ff" opacity=".9"/>
+    <polygon points="26,38 24,26 26,30 28,26" fill="rgba(46,232,255,0.3)"/>
+    <circle cx="26" cy="26" r="2.5" fill="#2ee8ff" opacity=".7"/>
+  </svg>
+</div>
+
+<!-- TOAST STACK -->
+<div class="hud" id="toast-stack"></div>
+
+<!-- FACTS STRIP -->
+<div id="facts-strip">
+  <div class="fact-item">🌍 Earth surface <span class="fact-val">510M km²</span></div>
+  <div class="fact-item">🌊 Ocean coverage <span class="fact-val">71%</span></div>
+  <div class="fact-item">👥 World population <span class="fact-val">8.1B</span></div>
+  <div class="fact-item">🏔️ Highest point <span>Everest</span> <span class="fact-val">8,849m</span></div>
+  <div class="fact-item">🏖️ Deepest trench <span>Mariana</span> <span class="fact-val">-10,984m</span></div>
+  <div class="fact-item">🌡️ Hottest recorded <span class="fact-val">56.7°C · Death Valley</span></div>
+  <div class="fact-item">❄️ Coldest recorded <span class="fact-val">-89.2°C · Antarctica</span></div>
+  <div class="fact-item">⚡ Time zones <span class="fact-val">38</span></div>
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  COUNTRY DATABASE — detailed data for all countries
+// ═══════════════════════════════════════════════════════
+const COUNTRY_DB = {
+  "Afghanistan":    {flag:"🇦🇫",capital:"Kabul",pop:41128771,area:652230,gdp:14.58e9,currency:"AFN",language:"Dari, Pashto",region:"South Asia",continent:"Asia",timezone:"UTC+4:30",lifeExp:64.8,hdi:0.478,relief:"Mountainous, Hindu Kush",coastline:"Landlocked",climate:"Arid to semi-arid",neighbors:6},
+  "Albania":        {flag:"🇦🇱",capital:"Tirana",pop:2877797,area:28748,gdp:18.26e9,currency:"ALL",language:"Albanian",region:"Southeastern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:78.5,hdi:0.796,relief:"Mostly mountains, coastal plains",coastline:476,climate:"Mediterranean",neighbors:5},
+  "Algeria":        {flag:"🇩🇿",capital:"Algiers",pop:44903225,area:2381741,gdp:163.7e9,currency:"DZD",language:"Arabic, Tamazight",region:"Northern Africa",continent:"Africa",timezone:"UTC+1",lifeExp:76.9,hdi:0.748,relief:"Tell Atlas, Saharan Atlas, Sahara",coastline:998,climate:"Mediterranean to arid",neighbors:6},
+  "Angola":         {flag:"🇦🇴",capital:"Luanda",pop:34503774,area:1246700,gdp:74.99e9,currency:"AOA",language:"Portuguese",region:"Sub-Saharan Africa",continent:"Africa",timezone:"UTC+1",lifeExp:61.2,hdi:0.586,relief:"Narrow coastal plain, large interior plateau",coastline:1600,climate:"Tropical",neighbors:4},
+  "Argentina":      {flag:"🇦🇷",capital:"Buenos Aires",pop:45605826,area:2780400,gdp:631.1e9,currency:"ARS",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-3",lifeExp:76.6,hdi:0.842,relief:"Pampas, Andes, Patagonia",coastline:4989,climate:"Varied, mostly temperate",neighbors:5},
+  "Armenia":        {flag:"🇦🇲",capital:"Yerevan",pop:2971966,area:29743,gdp:19.54e9,currency:"AMD",language:"Armenian",region:"South Caucasus",continent:"Asia",timezone:"UTC+4",lifeExp:75.1,hdi:0.776,relief:"Armenian Highlands, Caucasus",coastline:"Landlocked",climate:"Continental",neighbors:4},
+  "Australia":      {flag:"🇦🇺",capital:"Canberra",pop:25499884,area:7692024,gdp:1693e9,currency:"AUD",language:"English",region:"Oceania",continent:"Oceania",timezone:"UTC+8 to +11",lifeExp:83.2,hdi:0.951,relief:"Outback, Great Dividing Range",coastline:25760,climate:"Desert to tropical",neighbors:0},
+  "Austria":        {flag:"🇦🇹",capital:"Vienna",pop:9027999,area:83871,gdp:479.8e9,currency:"EUR",language:"German",region:"Western Europe",continent:"Europe",timezone:"UTC+1",lifeExp:81.6,hdi:0.916,relief:"Alps, Danube valley",coastline:"Landlocked",climate:"Temperate continental",neighbors:8},
+  "Azerbaijan":     {flag:"🇦🇿",capital:"Baku",pop:10143000,area:86600,gdp:54.62e9,currency:"AZN",language:"Azerbaijani",region:"South Caucasus",continent:"Asia",timezone:"UTC+4",lifeExp:73.0,hdi:0.745,relief:"Greater Caucasus, Kur-Aras lowland",coastline:"Caspian Sea (landlocked lake)",climate:"Varied",neighbors:5},
+  "Bangladesh":     {flag:"🇧🇩",capital:"Dhaka",pop:169356251,area:147570,gdp:460.2e9,currency:"BDT",language:"Bengali",region:"South Asia",continent:"Asia",timezone:"UTC+6",lifeExp:73.0,hdi:0.661,relief:"Mostly flat deltaic plain",coastline:580,climate:"Tropical monsoon",neighbors:2},
+  "Belarus":        {flag:"🇧🇾",capital:"Minsk",pop:9383853,area:207600,gdp:73.83e9,currency:"BYR",language:"Belarusian, Russian",region:"Eastern Europe",continent:"Europe",timezone:"UTC+3",lifeExp:74.5,hdi:0.808,relief:"Hilly lowland with forests",coastline:"Landlocked",climate:"Continental",neighbors:5},
+  "Belgium":        {flag:"🇧🇪",capital:"Brussels",pop:11590856,area:30528,gdp:592.7e9,currency:"EUR",language:"Dutch, French, German",region:"Western Europe",continent:"Europe",timezone:"UTC+1",lifeExp:81.8,hdi:0.937,relief:"Coastal plains, Ardennes plateau",coastline:67,climate:"Temperate maritime",neighbors:4},
+  "Bolivia":        {flag:"🇧🇴",capital:"Sucre / La Paz",pop:11832940,area:1098581,gdp:40.9e9,currency:"BOB",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-4",lifeExp:71.5,hdi:0.692,relief:"Andes, Altiplano, Amazon basin",coastline:"Landlocked",climate:"Varies by altitude",neighbors:5},
+  "Bosnia and Herzegovina":{flag:"🇧🇦",capital:"Sarajevo",pop:3280819,area:51197,gdp:22.07e9,currency:"BAM",language:"Bosnian, Croatian, Serbian",region:"Southern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:77.4,hdi:0.78,relief:"Dinaric Alps, Pannonian basin",coastline:20,climate:"Continental",neighbors:3},
+  "Botswana":       {flag:"🇧🇼",capital:"Gaborone",pop:2351627,area:581730,gdp:18.61e9,currency:"BWP",language:"English, Setswana",region:"Southern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:69.6,hdi:0.693,relief:"Kalahari Desert, Okavango Delta",coastline:"Landlocked",climate:"Semi-arid",neighbors:4},
+  "Brazil":         {flag:"🇧🇷",capital:"Brasília",pop:215313498,area:8515767,gdp:1920e9,currency:"BRL",language:"Portuguese",region:"South America",continent:"South America",timezone:"UTC-3 to -5",lifeExp:75.9,hdi:0.754,relief:"Amazon basin, Brazilian Highlands",coastline:7491,climate:"Mostly tropical",neighbors:10},
+  "Brunei":         {flag:"🇧🇳",capital:"Bandar Seri Begawan",pop:441532,area:5765,gdp:14.32e9,currency:"BND",language:"Malay",region:"Southeast Asia",continent:"Asia",timezone:"UTC+8",lifeExp:75.9,hdi:0.826,relief:"Coastal plains, hills",coastline:161,climate:"Tropical",neighbors:1},
+  "Bulgaria":       {flag:"🇧🇬",capital:"Sofia",pop:6465011,area:110879,gdp:91.06e9,currency:"BGN",language:"Bulgarian",region:"Eastern Europe",continent:"Europe",timezone:"UTC+2",lifeExp:75.0,hdi:0.795,relief:"Balkan Mountains, Rhodopes, Danubian plain",coastline:354,climate:"Continental",neighbors:5},
+  "Cambodia":       {flag:"🇰🇭",capital:"Phnom Penh",pop:16718965,area:181035,gdp:27.09e9,currency:"KHR",language:"Khmer",region:"Southeast Asia",continent:"Asia",timezone:"UTC+7",lifeExp:69.8,hdi:0.593,relief:"Central plain, Tonle Sap, Mekong",coastline:443,climate:"Tropical monsoon",neighbors:3},
+  "Cameroon":       {flag:"🇨🇲",capital:"Yaoundé",pop:26545864,area:475442,gdp:45.6e9,currency:"XAF",language:"French, English",region:"Central Africa",continent:"Africa",timezone:"UTC+1",lifeExp:59.3,hdi:0.576,relief:"Western highlands, southern plateau",coastline:402,climate:"Varied",neighbors:6},
+  "Canada":         {flag:"🇨🇦",capital:"Ottawa",pop:38155012,area:9984670,gdp:2139e9,currency:"CAD",language:"English, French",region:"North America",continent:"North America",timezone:"UTC-3.5 to -8",lifeExp:82.3,hdi:0.936,relief:"Rocky Mountains, Canadian Shield, tundra",coastline:202080,climate:"Varied, subarctic",neighbors:1},
+  "Chile":          {flag:"🇨🇱",capital:"Santiago",pop:19116201,area:756102,gdp:301.6e9,currency:"CLP",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-4 to -6",lifeExp:80.2,hdi:0.855,relief:"Andes, Atacama Desert, Patagonia",coastline:6435,climate:"Desert to polar",neighbors:3},
+  "China":          {flag:"🇨🇳",capital:"Beijing",pop:1412600000,area:9596960,gdp:17963e9,currency:"CNY",language:"Mandarin",region:"East Asia",continent:"Asia",timezone:"UTC+8",lifeExp:77.4,hdi:0.768,relief:"Himalayas, Tibetan Plateau, plains",coastline:14500,climate:"Varies enormously",neighbors:14},
+  "Colombia":       {flag:"🇨🇴",capital:"Bogotá",pop:51265844,area:1141748,gdp:343.8e9,currency:"COP",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-5",lifeExp:77.1,hdi:0.752,relief:"Andes, Caribbean coast, Amazon",coastline:3208,climate:"Tropical to mountain",neighbors:5},
+  "Congo":          {flag:"🇨🇬",capital:"Brazzaville",pop:5797805,area:342000,gdp:11.0e9,currency:"XAF",language:"French",region:"Central Africa",continent:"Africa",timezone:"UTC+1",lifeExp:64.6,hdi:0.574,relief:"Congo River basin, coastal plain",coastline:169,climate:"Tropical",neighbors:5},
+  "Costa Rica":     {flag:"🇨🇷",capital:"San José",pop:5212173,area:51100,gdp:64.52e9,currency:"CRC",language:"Spanish",region:"Central America",continent:"North America",timezone:"UTC-6",lifeExp:80.3,hdi:0.809,relief:"Central volcanic range",coastline:1290,climate:"Tropical",neighbors:2},
+  "Croatia":        {flag:"🇭🇷",capital:"Zagreb",pop:3888529,area:56594,gdp:67.81e9,currency:"EUR",language:"Croatian",region:"Southern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:78.2,hdi:0.851,relief:"Dinaric Alps, Adriatic coast",coastline:5835,climate:"Mediterranean to continental",neighbors:5},
+  "Cuba":           {flag:"🇨🇺",capital:"Havana",pop:11256372,area:109884,gdp:107.4e9,currency:"CUP",language:"Spanish",region:"Caribbean",continent:"North America",timezone:"UTC-5",lifeExp:78.8,hdi:0.764,relief:"Plains, sierras",coastline:3735,climate:"Tropical",neighbors:0},
+  "Czech Republic": {flag:"🇨🇿",capital:"Prague",pop:10701777,area:78866,gdp:290.9e9,currency:"CZK",language:"Czech",region:"Central Europe",continent:"Europe",timezone:"UTC+1",lifeExp:79.2,hdi:0.9,relief:"Bohemian Massif, Moravian lowlands",coastline:"Landlocked",climate:"Continental",neighbors:4},
+  "Denmark":        {flag:"🇩🇰",capital:"Copenhagen",pop:5792202,area:42924,gdp:397.1e9,currency:"DKK",language:"Danish",region:"Northern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:81.4,hdi:0.948,relief:"Low-lying, flat",coastline:7314,climate:"Temperate",neighbors:1},
+  "Democratic Republic of the Congo":{flag:"🇨🇩",capital:"Kinshasa",pop:99010212,area:2344858,gdp:55.5e9,currency:"CDF",language:"French",region:"Central Africa",continent:"Africa",timezone:"UTC+1 to +2",lifeExp:60.7,hdi:0.479,relief:"Congo basin, Rift Valley",coastline:37,climate:"Tropical",neighbors:9},
+  "Ecuador":        {flag:"🇪🇨",capital:"Quito",pop:17797737,area:283561,gdp:107.5e9,currency:"USD",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-5",lifeExp:77.0,hdi:0.740,relief:"Andes, Amazon basin, coast",coastline:2237,climate:"Tropical to alpine",neighbors:2},
+  "Egypt":          {flag:"🇪🇬",capital:"Cairo",pop:102334404,area:1002450,gdp:404.1e9,currency:"EGP",language:"Arabic",region:"Northern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:72.0,hdi:0.731,relief:"Nile Valley, Sahara, Sinai",coastline:2450,climate:"Desert",neighbors:4},
+  "Ethiopia":       {flag:"🇪🇹",capital:"Addis Ababa",pop:120283026,area:1104300,gdp:107.5e9,currency:"ETB",language:"Amharic",region:"East Africa",continent:"Africa",timezone:"UTC+3",lifeExp:67.0,hdi:0.498,relief:"Ethiopian Highlands, Rift Valley",coastline:"Landlocked",climate:"Tropical to highland",neighbors:6},
+  "Finland":        {flag:"🇫🇮",capital:"Helsinki",pop:5530719,area:338145,gdp:281.2e9,currency:"EUR",language:"Finnish, Swedish",region:"Northern Europe",continent:"Europe",timezone:"UTC+2",lifeExp:82.0,hdi:0.94,relief:"Flat to rolling, lakes",coastline:4600,climate:"Subarctic",neighbors:3},
+  "France":         {flag:"🇫🇷",capital:"Paris",pop:67391582,area:643801,gdp:2778e9,currency:"EUR",language:"French",region:"Western Europe",continent:"Europe",timezone:"UTC+1",lifeExp:82.7,hdi:0.903,relief:"Alps, Pyrenees, central plateau",coastline:4853,climate:"Temperate to Mediterranean",neighbors:6},
+  "Germany":        {flag:"🇩🇪",capital:"Berlin",pop:83900473,area:357114,gdp:4073e9,currency:"EUR",language:"German",region:"Central Europe",continent:"Europe",timezone:"UTC+1",lifeExp:81.3,hdi:0.942,relief:"Northern plains, central uplands, Alps",coastline:2389,climate:"Temperate",neighbors:9},
+  "Ghana":          {flag:"🇬🇭",capital:"Accra",pop:32395450,area:238533,gdp:72.84e9,currency:"GHS",language:"English",region:"West Africa",continent:"Africa",timezone:"UTC+0",lifeExp:64.1,hdi:0.632,relief:"Ashanti plateau, coastal plains",coastline:539,climate:"Tropical",neighbors:3},
+  "Greece":         {flag:"🇬🇷",capital:"Athens",pop:10718565,area:131957,gdp:217.7e9,currency:"EUR",language:"Greek",region:"Southern Europe",continent:"Europe",timezone:"UTC+2",lifeExp:82.2,hdi:0.888,relief:"Mountains, peninsulas, islands",coastline:13676,climate:"Mediterranean",neighbors:4},
+  "Guatemala":      {flag:"🇬🇹",capital:"Guatemala City",pop:17109746,area:108889,gdp:88.2e9,currency:"GTQ",language:"Spanish",region:"Central America",continent:"North America",timezone:"UTC-6",lifeExp:74.3,hdi:0.627,relief:"Sierra Madre volcanoes, highlands",coastline:400,climate:"Tropical",neighbors:4},
+  "Hungary":        {flag:"🇭🇺",capital:"Budapest",pop:9749763,area:93028,gdp:182.2e9,currency:"HUF",language:"Hungarian",region:"Central Europe",continent:"Europe",timezone:"UTC+1",lifeExp:76.9,hdi:0.854,relief:"Pannonian plain, Carpathian basin",coastline:"Landlocked",climate:"Continental",neighbors:7},
+  "India":          {flag:"🇮🇳",capital:"New Delhi",pop:1417173173,area:3287263,gdp:3730e9,currency:"INR",language:"Hindi, English + 21 official",region:"South Asia",continent:"Asia",timezone:"UTC+5:30",lifeExp:70.2,hdi:0.633,relief:"Himalayas, Deccan plateau, Indo-Gangetic plain",coastline:7516,climate:"Tropical to alpine",neighbors:6},
+  "Indonesia":      {flag:"🇮🇩",capital:"Jakarta",pop:273523615,area:1904569,gdp:1319e9,currency:"IDR",language:"Indonesian",region:"Southeast Asia",continent:"Asia",timezone:"UTC+7 to +9",lifeExp:71.7,hdi:0.705,relief:"Volcanic archipelago",coastline:54716,climate:"Tropical",neighbors:3},
+  "Iran":           {flag:"🇮🇷",capital:"Tehran",pop:85028759,area:1648195,gdp:669.4e9,currency:"IRR",language:"Persian",region:"Middle East",continent:"Asia",timezone:"UTC+3:30",lifeExp:76.7,hdi:0.774,relief:"Alborz, Zagros ranges, central desert",coastline:2815,climate:"Arid to semi-arid",neighbors:7},
+  "Iraq":           {flag:"🇮🇶",capital:"Baghdad",pop:40222493,area:438317,gdp:264.2e9,currency:"IQD",language:"Arabic, Kurdish",region:"Middle East",continent:"Asia",timezone:"UTC+3",lifeExp:70.6,hdi:0.686,relief:"Mesopotamian plain, mountains in north",coastline:58,climate:"Desert",neighbors:6},
+  "Ireland":        {flag:"🇮🇪",capital:"Dublin",pop:4994724,area:70273,gdp:529.3e9,currency:"EUR",language:"Irish, English",region:"Northern Europe",continent:"Europe",timezone:"UTC+0",lifeExp:82.8,hdi:0.945,relief:"Low central plain, coastal mountains",coastline:2500,climate:"Temperate oceanic",neighbors:1},
+  "Israel":         {flag:"🇮🇱",capital:"Jerusalem",pop:8655535,area:22072,gdp:488.5e9,currency:"ILS",language:"Hebrew, Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+2",lifeExp:83.0,hdi:0.919,relief:"Negev desert, coastal plain",coastline:273,climate:"Mediterranean to desert",neighbors:4},
+  "Italy":          {flag:"🇮🇹",capital:"Rome",pop:60461826,area:301340,gdp:2058e9,currency:"EUR",language:"Italian",region:"Southern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:83.4,hdi:0.895,relief:"Alps, Apennines, Po Valley",coastline:7600,climate:"Mediterranean to alpine",neighbors:6},
+  "Japan":          {flag:"🇯🇵",capital:"Tokyo",pop:125681593,area:377975,gdp:4230e9,currency:"JPY",language:"Japanese",region:"East Asia",continent:"Asia",timezone:"UTC+9",lifeExp:84.3,hdi:0.919,relief:"Mountainous volcanic archipelago",coastline:29751,climate:"Temperate to subtropical",neighbors:0},
+  "Jordan":         {flag:"🇯🇴",capital:"Amman",pop:10203140,area:89342,gdp:44.57e9,currency:"JOD",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+2",lifeExp:74.8,hdi:0.720,relief:"Jordan Rift Valley, desert plateau",coastline:26,climate:"Arid",neighbors:5},
+  "Kazakhstan":     {flag:"🇰🇿",capital:"Nur-Sultan",pop:18513930,area:2724900,gdp:197.0e9,currency:"KZT",language:"Kazakh, Russian",region:"Central Asia",continent:"Asia",timezone:"UTC+5 to +6",lifeExp:73.0,hdi:0.811,relief:"Steppe, Altai, Tian Shan",coastline:"Caspian Sea (landlocked lake)",climate:"Dry continental",neighbors:5},
+  "Kenya":          {flag:"🇰🇪",capital:"Nairobi",pop:53771296,area:580367,gdp:106.0e9,currency:"KES",language:"Swahili, English",region:"East Africa",continent:"Africa",timezone:"UTC+3",lifeExp:66.7,hdi:0.601,relief:"Great Rift Valley, highlands",coastline:536,climate:"Tropical to semi-arid",neighbors:5},
+  "Laos":           {flag:"🇱🇦",capital:"Vientiane",pop:7379358,area:236800,gdp:18.17e9,currency:"LAK",language:"Lao",region:"Southeast Asia",continent:"Asia",timezone:"UTC+7",lifeExp:68.2,hdi:0.607,relief:"Mountainous with Mekong plains",coastline:"Landlocked",climate:"Tropical monsoon",neighbors:5},
+  "Lebanon":        {flag:"🇱🇧",capital:"Beirut",pop:6769151,area:10452,gdp:19.0e9,currency:"LBP",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+2",lifeExp:78.9,hdi:0.706,relief:"Lebanese and Anti-Lebanon ranges",coastline:225,climate:"Mediterranean",neighbors:2},
+  "Libya":          {flag:"🇱🇾",capital:"Tripoli",pop:6871292,area:1759541,gdp:52.09e9,currency:"LYD",language:"Arabic",region:"Northern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:72.7,hdi:0.718,relief:"Mostly Sahara desert, coastal strip",coastline:1770,climate:"Desert",neighbors:6},
+  "Malaysia":       {flag:"🇲🇾",capital:"Kuala Lumpur",pop:32365999,area:329847,gdp:406.3e9,currency:"MYR",language:"Malay",region:"Southeast Asia",continent:"Asia",timezone:"UTC+8",lifeExp:75.5,hdi:0.803,relief:"Peninsula and Borneo highlands",coastline:4675,climate:"Tropical",neighbors:3},
+  "Mali":           {flag:"🇲🇱",capital:"Bamako",pop:22395489,area:1240192,gdp:17.6e9,currency:"XOF",language:"French",region:"West Africa",continent:"Africa",timezone:"UTC+0",lifeExp:59.3,hdi:0.434,relief:"Sahel, Niger River, Sahara",coastline:"Landlocked",climate:"Saharan to tropical",neighbors:7},
+  "Mexico":         {flag:"🇲🇽",capital:"Mexico City",pop:130262216,area:1964375,gdp:1322e9,currency:"MXN",language:"Spanish",region:"Central America",continent:"North America",timezone:"UTC-6 to -8",lifeExp:75.0,hdi:0.758,relief:"Central plateau, Sierra Madres",coastline:9330,climate:"Tropical to desert",neighbors:2},
+  "Mongolia":       {flag:"🇲🇳",capital:"Ulaanbaatar",pop:3278292,area:1564116,gdp:15.08e9,currency:"MNT",language:"Mongolian",region:"East Asia",continent:"Asia",timezone:"UTC+7 to +8",lifeExp:70.4,hdi:0.739,relief:"Gobi Desert, steppe, mountains",coastline:"Landlocked",climate:"Extreme continental",neighbors:2},
+  "Morocco":        {flag:"🇲🇦",capital:"Rabat",pop:37344795,area:446550,gdp:132.0e9,currency:"MAD",language:"Arabic, Amazigh",region:"Northern Africa",continent:"Africa",timezone:"UTC+1",lifeExp:74.0,hdi:0.683,relief:"Atlas Mountains, Saharan fringe",coastline:1835,climate:"Mediterranean to arid",neighbors:2},
+  "Mozambique":     {flag:"🇲🇿",capital:"Maputo",pop:32163047,area:801590,gdp:15.1e9,currency:"MZN",language:"Portuguese",region:"Southern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:60.9,hdi:0.456,relief:"Coastal lowlands, highland plateau",coastline:2470,climate:"Tropical to subtropical",neighbors:6},
+  "Myanmar":        {flag:"🇲🇲",capital:"Naypyidaw",pop:54409800,area:676578,gdp:65.1e9,currency:"MMK",language:"Burmese",region:"Southeast Asia",continent:"Asia",timezone:"UTC+6:30",lifeExp:66.8,hdi:0.585,relief:"Central plains, northern mountains",coastline:1930,climate:"Tropical monsoon",neighbors:5},
+  "Nepal":          {flag:"🇳🇵",capital:"Kathmandu",pop:29136808,area:147181,gdp:36.08e9,currency:"NPR",language:"Nepali",region:"South Asia",continent:"Asia",timezone:"UTC+5:45",lifeExp:71.0,hdi:0.602,relief:"Himalayas, Terai plains, hills",coastline:"Landlocked",climate:"Alpine to subtropical",neighbors:2},
+  "Netherlands":    {flag:"🇳🇱",capital:"Amsterdam",pop:17441139,area:41543,gdp:1012e9,currency:"EUR",language:"Dutch",region:"Western Europe",continent:"Europe",timezone:"UTC+1",lifeExp:82.3,hdi:0.941,relief:"Flat, much below sea level",coastline:451,climate:"Temperate maritime",neighbors:2},
+  "New Zealand":    {flag:"🇳🇿",capital:"Wellington",pop:5123100,area:268021,gdp:249.9e9,currency:"NZD",language:"English, Māori",region:"Pacific",continent:"Oceania",timezone:"UTC+12 to +13",lifeExp:82.5,hdi:0.931,relief:"Southern Alps, volcanic plateau",coastline:15134,climate:"Temperate oceanic",neighbors:0},
+  "Nigeria":        {flag:"🇳🇬",capital:"Abuja",pop:213401323,area:923768,gdp:477.4e9,currency:"NGN",language:"English",region:"West Africa",continent:"Africa",timezone:"UTC+1",lifeExp:54.7,hdi:0.535,relief:"Niger Delta, savanna, Sahel",coastline:853,climate:"Tropical to semi-arid",neighbors:4},
+  "North Korea":    {flag:"🇰🇵",capital:"Pyongyang",pop:25971909,area:120538,gdp:16.0e9,currency:"KPW",language:"Korean",region:"East Asia",continent:"Asia",timezone:"UTC+9",lifeExp:72.6,hdi:0.733,relief:"Mostly mountainous",coastline:2495,climate:"Continental",neighbors:3},
+  "Norway":         {flag:"🇳🇴",capital:"Oslo",pop:5421241,area:385207,gdp:579.3e9,currency:"NOK",language:"Norwegian",region:"Northern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:83.2,hdi:0.961,relief:"Fjords, mountains, arctic tundra",coastline:25148,climate:"Subarctic to Arctic",neighbors:3},
+  "Pakistan":       {flag:"🇵🇰",capital:"Islamabad",pop:220892340,area:881913,gdp:375.4e9,currency:"PKR",language:"Urdu, English",region:"South Asia",continent:"Asia",timezone:"UTC+5",lifeExp:67.3,hdi:0.544,relief:"Himalayas, Karakoram, Indus plain",coastline:1046,climate:"Arid to semi-arid",neighbors:4},
+  "Palestine":      {flag:"🇵🇸",capital:"Ramallah",pop:5222962,area:6020,gdp:17.4e9,currency:"ILS/JOD",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+2",lifeExp:73.2,hdi:0.708,relief:"West Bank highlands, Gaza coastal strip",coastline:40,climate:"Mediterranean",neighbors:2},
+  "Panama":         {flag:"🇵🇦",capital:"Panama City",pop:4351267,area:75417,gdp:64.25e9,currency:"PAB",language:"Spanish",region:"Central America",continent:"North America",timezone:"UTC-5",lifeExp:78.5,hdi:0.805,relief:"Mountains, Canal watershed",coastline:2490,climate:"Tropical",neighbors:2},
+  "Papua New Guinea":{flag:"🇵🇬",capital:"Port Moresby",pop:9119446,area:462840,gdp:25.5e9,currency:"PGK",language:"English, Tok Pisin, Hiri Motu",region:"Pacific",continent:"Oceania",timezone:"UTC+10",lifeExp:64.4,hdi:0.558,relief:"Central cordillera, coastal swamps",coastline:5152,climate:"Tropical",neighbors:1},
+  "Peru":           {flag:"🇵🇪",capital:"Lima",pop:32971854,area:1285216,gdp:242.6e9,currency:"PEN",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-5",lifeExp:76.7,hdi:0.762,relief:"Andes, Amazon basin, coast",coastline:2414,climate:"Desert to tropical",neighbors:5},
+  "Philippines":    {flag:"🇵🇭",capital:"Manila",pop:110818325,area:300000,gdp:394.1e9,currency:"PHP",language:"Filipino, English",region:"Southeast Asia",continent:"Asia",timezone:"UTC+8",lifeExp:71.2,hdi:0.699,relief:"Volcanic archipelago, mountains",coastline:36289,climate:"Tropical",neighbors:0},
+  "Poland":         {flag:"🇵🇱",capital:"Warsaw",pop:37950802,area:312696,gdp:688.2e9,currency:"PLN",language:"Polish",region:"Central Europe",continent:"Europe",timezone:"UTC+1",lifeExp:78.5,hdi:0.876,relief:"North European plain, Tatra mountains",coastline:491,climate:"Temperate continental",neighbors:7},
+  "Portugal":       {flag:"🇵🇹",capital:"Lisbon",pop:10305564,area:92212,gdp:250.9e9,currency:"EUR",language:"Portuguese",region:"Southern Europe",continent:"Europe",timezone:"UTC+0",lifeExp:81.9,hdi:0.866,relief:"Mountains, coastal plains",coastline:1793,climate:"Mediterranean",neighbors:1},
+  "Qatar":          {flag:"🇶🇦",capital:"Doha",pop:2930524,area:11586,gdp:219.0e9,currency:"QAR",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+3",lifeExp:79.8,hdi:0.855,relief:"Flat desert peninsula",coastline:563,climate:"Desert",neighbors:1},
+  "Romania":        {flag:"🇷🇴",capital:"Bucharest",pop:19237691,area:238397,gdp:300.6e9,currency:"RON",language:"Romanian",region:"Eastern Europe",continent:"Europe",timezone:"UTC+2",lifeExp:75.6,hdi:0.821,relief:"Carpathians, Danube plain",coastline:225,climate:"Continental",neighbors:5},
+  "Russia":         {flag:"🇷🇺",capital:"Moscow",pop:145102755,area:17098246,gdp:1829e9,currency:"RUB",language:"Russian",region:"Eastern Europe / North Asia",continent:"Europe/Asia",timezone:"UTC+2 to +12",lifeExp:72.7,hdi:0.822,relief:"European plain, Ural, Siberia, Pacific ranges",coastline:37653,climate:"Varies: subarctic, continental, tundra",neighbors:14},
+  "Saudi Arabia":   {flag:"🇸🇦",capital:"Riyadh",pop:34813871,area:2149690,gdp:1067e9,currency:"SAR",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+3",lifeExp:75.0,hdi:0.875,relief:"Arabian Peninsula, Rub al-Khali desert",coastline:2640,climate:"Arid desert",neighbors:7},
+  "Senegal":        {flag:"🇸🇳",capital:"Dakar",pop:17196301,area:196722,gdp:27.63e9,currency:"XOF",language:"French",region:"West Africa",continent:"Africa",timezone:"UTC+0",lifeExp:68.7,hdi:0.512,relief:"Low rolling plains, Fouta Djallon",coastline:531,climate:"Tropical",neighbors:5},
+  "Serbia":         {flag:"🇷🇸",capital:"Belgrade",pop:6871548,area:77474,gdp:63.35e9,currency:"RSD",language:"Serbian",region:"Southern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:75.5,hdi:0.806,relief:"Pannonian plain, Dinaric Alps",coastline:"Landlocked",climate:"Continental",neighbors:8},
+  "South Africa":   {flag:"🇿🇦",capital:"Pretoria",pop:59308690,area:1221037,gdp:399.0e9,currency:"ZAR",language:"11 official",region:"Southern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:64.1,hdi:0.713,relief:"Drakensberg, Karoo, coastal plains",coastline:2798,climate:"Temperate to subtropical",neighbors:6},
+  "South Korea":    {flag:"🇰🇷",capital:"Seoul",pop:51744876,area:100210,gdp:1710e9,currency:"KRW",language:"Korean",region:"East Asia",continent:"Asia",timezone:"UTC+9",lifeExp:83.5,hdi:0.925,relief:"Mountainous, southern coastal plain",coastline:2413,climate:"Temperate continental",neighbors:1},
+  "Spain":          {flag:"🇪🇸",capital:"Madrid",pop:47351567,area:505990,gdp:1426e9,currency:"EUR",language:"Spanish",region:"Southern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:83.5,hdi:0.905,relief:"Meseta, Pyrenees, coastal ranges",coastline:4964,climate:"Mediterranean to semi-arid",neighbors:3},
+  "Sri Lanka":      {flag:"🇱🇰",capital:"Colombo",pop:21919000,area:65610,gdp:84.7e9,currency:"LKR",language:"Sinhala, Tamil",region:"South Asia",continent:"Asia",timezone:"UTC+5:30",lifeExp:77.0,hdi:0.782,relief:"Central highlands, coastal plains",coastline:1340,climate:"Tropical",neighbors:0},
+  "Sudan":          {flag:"🇸🇩",capital:"Khartoum",pop:44909353,area:1861484,gdp:34.33e9,currency:"SDG",language:"Arabic, English",region:"Northern Africa",continent:"Africa",timezone:"UTC+3",lifeExp:65.3,hdi:0.508,relief:"Nile basin, desert, Darfur highlands",coastline:853,climate:"Arid to tropical",neighbors:7},
+  "Sweden":         {flag:"🇸🇪",capital:"Stockholm",pop:10353442,area:450295,gdp:585.9e9,currency:"SEK",language:"Swedish",region:"Northern Europe",continent:"Europe",timezone:"UTC+1",lifeExp:83.1,hdi:0.947,relief:"Mountains, forests, lakes",coastline:3218,climate:"Subarctic to temperate",neighbors:3},
+  "Switzerland":    {flag:"🇨🇭",capital:"Bern",pop:8654622,area:41285,gdp:800.6e9,currency:"CHF",language:"German, French, Italian, Romansh",region:"Western Europe",continent:"Europe",timezone:"UTC+1",lifeExp:83.8,hdi:0.962,relief:"Alps, Central Plateau, Jura",coastline:"Landlocked",climate:"Temperate",neighbors:5},
+  "Syria":          {flag:"🇸🇾",capital:"Damascus",pop:17500657,area:185180,gdp:60.04e9,currency:"SYP",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+2",lifeExp:72.7,hdi:0.577,relief:"Syrian steppe, coast, mountains",coastline:193,climate:"Desert to Mediterranean",neighbors:5},
+  "Taiwan":         {flag:"🇹🇼",capital:"Taipei",pop:23570000,area:36193,gdp:759.3e9,currency:"TWD",language:"Mandarin",region:"East Asia",continent:"Asia",timezone:"UTC+8",lifeExp:80.4,hdi:0.916,relief:"Central mountain range",coastline:1566,climate:"Subtropical to tropical",neighbors:0},
+  "Tanzania":       {flag:"🇹🇿",capital:"Dodoma",pop:61498437,area:945087,gdp:67.83e9,currency:"TZS",language:"Swahili, English",region:"East Africa",continent:"Africa",timezone:"UTC+3",lifeExp:65.5,hdi:0.549,relief:"Serengeti, Kilimanjaro, Rift Valley",coastline:1424,climate:"Tropical",neighbors:8},
+  "Thailand":       {flag:"🇹🇭",capital:"Bangkok",pop:71601103,area:513120,gdp:543.6e9,currency:"THB",language:"Thai",region:"Southeast Asia",continent:"Asia",timezone:"UTC+7",lifeExp:77.2,hdi:0.800,relief:"Central plain, northern mountains",coastline:3219,climate:"Tropical monsoon",neighbors:4},
+  "Turkey":         {flag:"🇹🇷",capital:"Ankara",pop:84339067,area:783562,gdp:905.9e9,currency:"TRY",language:"Turkish",region:"Middle East / Southern Europe",continent:"Asia/Europe",timezone:"UTC+3",lifeExp:77.7,hdi:0.838,relief:"Anatolian plateau, Pontus, Taurus",coastline:7200,climate:"Mediterranean to continental",neighbors:8},
+  "Uganda":         {flag:"🇺🇬",capital:"Kampala",pop:45853778,area:241038,gdp:37.73e9,currency:"UGX",language:"English, Swahili",region:"East Africa",continent:"Africa",timezone:"UTC+3",lifeExp:63.4,hdi:0.544,relief:"Great Rift Valley, Lake Victoria",coastline:"Landlocked",climate:"Tropical",neighbors:5},
+  "Ukraine":        {flag:"🇺🇦",capital:"Kyiv",pop:43531422,area:603550,gdp:160.5e9,currency:"UAH",language:"Ukrainian",region:"Eastern Europe",continent:"Europe",timezone:"UTC+2",lifeExp:73.0,hdi:0.773,relief:"Steppe, Carpathians, Black Sea coast",coastline:2782,climate:"Continental",neighbors:7},
+  "United Arab Emirates":{flag:"🇦🇪",capital:"Abu Dhabi",pop:9771000,area:83600,gdp:501.3e9,currency:"AED",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+4",lifeExp:78.0,hdi:0.911,relief:"Desert, Hajar Mountains",coastline:1318,climate:"Desert",neighbors:2},
+  "United Kingdom": {flag:"🇬🇧",capital:"London",pop:67215293,area:242495,gdp:3070e9,currency:"GBP",language:"English",region:"Northern Europe",continent:"Europe",timezone:"UTC+0",lifeExp:81.4,hdi:0.929,relief:"Highlands, Pennines, southern lowlands",coastline:12429,climate:"Temperate oceanic",neighbors:1},
+  "United States of America":{flag:"🇺🇸",capital:"Washington D.C.",pop:331002651,area:9833517,gdp:25460e9,currency:"USD",language:"English",region:"North America",continent:"North America",timezone:"UTC-5 to -10",lifeExp:79.1,hdi:0.921,relief:"Appalachians, Rockies, Great Plains",coastline:19924,climate:"Temperate to arctic, tropical in Hawaii",neighbors:2},
+  "Uruguay":        {flag:"🇺🇾",capital:"Montevideo",pop:3473730,area:176215,gdp:61.44e9,currency:"UYU",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-3",lifeExp:77.9,hdi:0.809,relief:"Rolling lowlands",coastline:660,climate:"Temperate",neighbors:2},
+  "Uzbekistan":     {flag:"🇺🇿",capital:"Tashkent",pop:34232050,area:447400,gdp:69.24e9,currency:"UZS",language:"Uzbek",region:"Central Asia",continent:"Asia",timezone:"UTC+5",lifeExp:71.7,hdi:0.727,relief:"Steppe, Fergana Valley, mountains",coastline:"Landlocked",climate:"Dry continental",neighbors:5},
+  "Venezuela":      {flag:"🇻🇪",capital:"Caracas",pop:28435943,area:916445,gdp:482.4e9,currency:"VES",language:"Spanish",region:"South America",continent:"South America",timezone:"UTC-4",lifeExp:72.1,hdi:0.711,relief:"Andes, Llanos, Amazon basin",coastline:2800,climate:"Tropical",neighbors:3},
+  "Vietnam":        {flag:"🇻🇳",capital:"Hanoi",pop:97338579,area:331212,gdp:408.8e9,currency:"VND",language:"Vietnamese",region:"Southeast Asia",continent:"Asia",timezone:"UTC+7",lifeExp:73.7,hdi:0.703,relief:"Annamite Range, Red River delta, Mekong",coastline:3444,climate:"Tropical monsoon",neighbors:3},
+  "Yemen":          {flag:"🇾🇪",capital:"Sana'a",pop:30491000,area:527968,gdp:19.95e9,currency:"YER",language:"Arabic",region:"Middle East",continent:"Asia",timezone:"UTC+3",lifeExp:66.1,hdi:0.455,relief:"Hadhramaut plateau, Tihama coastal plain",coastline:1906,climate:"Mostly desert",neighbors:2},
+  "Zambia":         {flag:"🇿🇲",capital:"Lusaka",pop:19473125,area:752618,gdp:21.31e9,currency:"ZMW",language:"English",region:"Southern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:63.9,hdi:0.565,relief:"High plateau, Rift Valley",coastline:"Landlocked",climate:"Tropical",neighbors:8},
+  "Zimbabwe":       {flag:"🇿🇼",capital:"Harare",pop:15092171,area:390757,gdp:27.29e9,currency:"ZWL",language:"English, Shona, Ndebele",region:"Southern Africa",continent:"Africa",timezone:"UTC+2",lifeExp:61.2,hdi:0.571,relief:"High veld, Limpopo basin",coastline:"Landlocked",climate:"Tropical",neighbors:4},
+  "Ivory Coast":    {flag:"🇨🇮",capital:"Yamoussoukro",pop:27053629,area:322463,gdp:69.5e9,currency:"XOF",language:"French",region:"West Africa",continent:"Africa",timezone:"UTC+0",lifeExp:58.7,hdi:0.55,relief:"Plateaus, southern coastal lagoons",coastline:515,climate:"Tropical",neighbors:5},
+  "Kenya":          {flag:"🇰🇪",capital:"Nairobi",pop:53771296,area:580367,gdp:106.0e9,currency:"KES",language:"Swahili, English",region:"East Africa",continent:"Africa",timezone:"UTC+3",lifeExp:66.7,hdi:0.601,relief:"Great Rift Valley, highlands",coastline:536,climate:"Tropical to semi-arid",neighbors:5},
+};
+
+// MAJOR CITIES
+const CITIES = [
+  {name:"Tokyo",lat:35.6762,lng:139.6503,pop:13960000,capital:false,country:"Japan"},
+  {name:"Delhi",lat:28.6139,lng:77.2090,pop:32226000,capital:true,country:"India"},
+  {name:"Shanghai",lat:31.2304,lng:121.4737,pop:26317000,capital:false,country:"China"},
+  {name:"São Paulo",lat:-23.5505,lng:-46.6333,pop:22430000,capital:false,country:"Brazil"},
+  {name:"Mexico City",lat:19.4326,lng:-99.1332,pop:21672000,capital:true,country:"Mexico"},
+  {name:"Cairo",lat:30.0444,lng:31.2357,pop:21323000,capital:true,country:"Egypt"},
+  {name:"Mumbai",lat:19.0760,lng:72.8777,pop:20667000,capital:false,country:"India"},
+  {name:"Beijing",lat:39.9042,lng:116.4074,pop:20035000,capital:true,country:"China"},
+  {name:"Dhaka",lat:23.8103,lng:90.4125,pop:22478000,capital:true,country:"Bangladesh"},
+  {name:"Osaka",lat:34.6937,lng:135.5023,pop:19059000,capital:false,country:"Japan"},
+  {name:"New York",lat:40.7128,lng:-74.0060,pop:18819000,capital:false,country:"United States of America"},
+  {name:"Karachi",lat:24.8607,lng:67.0011,pop:17236000,capital:false,country:"Pakistan"},
+  {name:"Buenos Aires",lat:-34.6037,lng:-58.3816,pop:15257000,capital:true,country:"Argentina"},
+  {name:"Chongqing",lat:29.4316,lng:106.9123,pop:15744000,capital:false,country:"China"},
+  {name:"Istanbul",lat:41.0082,lng:28.9784,pop:15190000,capital:false,country:"Turkey"},
+  {name:"Kolkata",lat:22.5726,lng:88.3639,pop:15134000,capital:false,country:"India"},
+  {name:"Manila",lat:14.5995,lng:120.9842,pop:14800000,capital:true,country:"Philippines"},
+  {name:"Lagos",lat:6.5244,lng:3.3792,pop:15946000,capital:false,country:"Nigeria"},
+  {name:"Rio de Janeiro",lat:-22.9068,lng:-43.1729,pop:13634000,capital:false,country:"Brazil"},
+  {name:"Tianjin",lat:39.3434,lng:117.3616,pop:13589000,capital:false,country:"China"},
+  {name:"Kinshasa",lat:-4.4419,lng:15.2663,pop:15628000,capital:true,country:"Democratic Republic of the Congo"},
+  {name:"Guangzhou",lat:23.1291,lng:113.2644,pop:16100000,capital:false,country:"China"},
+  {name:"Los Angeles",lat:34.0522,lng:-118.2437,pop:12459000,capital:false,country:"United States of America"},
+  {name:"Moscow",lat:55.7558,lng:37.6173,pop:12410000,capital:true,country:"Russia"},
+  {name:"Shenzhen",lat:22.5431,lng:114.0579,pop:13438000,capital:false,country:"China"},
+  {name:"Lahore",lat:31.5204,lng:74.3587,pop:13090000,capital:false,country:"Pakistan"},
+  {name:"Bangalore",lat:12.9716,lng:77.5946,pop:12765000,capital:false,country:"India"},
+  {name:"Paris",lat:48.8566,lng:2.3522,pop:11078000,capital:true,country:"France"},
+  {name:"Bogotá",lat:4.7110,lng:-74.0721,pop:10978000,capital:true,country:"Colombia"},
+  {name:"Jakarta",lat:-6.2088,lng:106.8456,pop:10770000,capital:true,country:"Indonesia"},
+  {name:"Chennai",lat:13.0827,lng:80.2707,pop:10456000,capital:false,country:"India"},
+  {name:"Lima",lat:-12.0464,lng:-77.0428,pop:11044000,capital:true,country:"Peru"},
+  {name:"Bangkok",lat:13.7563,lng:100.5018,pop:10539000,capital:true,country:"Thailand"},
+  {name:"Seoul",lat:37.5665,lng:126.9780,pop:9963000,capital:true,country:"South Korea"},
+  {name:"Nagoya",lat:35.1815,lng:136.9066,pop:9537000,capital:false,country:"Japan"},
+  {name:"Hyderabad",lat:17.3850,lng:78.4867,pop:9482000,capital:false,country:"India"},
+  {name:"London",lat:51.5074,lng:-0.1278,pop:9648000,capital:true,country:"United Kingdom"},
+  {name:"Tehran",lat:35.6892,lng:51.3890,pop:9381000,capital:true,country:"Iran"},
+  {name:"Chicago",lat:41.8781,lng:-87.6298,pop:8900000,capital:false,country:"United States of America"},
+  {name:"Chengdu",lat:30.5728,lng:104.0668,pop:8813000,capital:false,country:"China"},
+  {name:"Nairobi",lat:-1.2921,lng:36.8219,pop:4735000,capital:true,country:"Kenya"},
+  {name:"Sydney",lat:-33.8688,lng:151.2093,pop:5312000,capital:false,country:"Australia"},
+  {name:"Toronto",lat:43.6532,lng:-79.3832,pop:6418000,capital:false,country:"Canada"},
+  {name:"Johannesburg",lat:-26.2041,lng:28.0473,pop:5635000,country:"South Africa"},
+  {name:"Ho Chi Minh City",lat:10.8231,lng:106.6297,pop:9321000,capital:false,country:"Vietnam"},
+  {name:"Singapore",lat:1.3521,lng:103.8198,pop:5453000,capital:true,country:"Singapore"},
+  {name:"Berlin",lat:52.5200,lng:13.4050,pop:3645000,capital:true,country:"Germany"},
+  {name:"Riyadh",lat:24.7136,lng:46.6753,pop:7682000,capital:true,country:"Saudi Arabia"},
+  {name:"Madrid",lat:40.4168,lng:-3.7038,pop:3223000,capital:true,country:"Spain"},
+  {name:"Kabul",lat:34.5553,lng:69.2075,pop:4434000,capital:true,country:"Afghanistan"},
+  {name:"Kathmandu",lat:27.7172,lng:85.3240,pop:1442271,capital:true,country:"Nepal"},
+];
+
+// ═══════════════════════════════════════════════════════
+//  MAP INITIALIZATION
+// ═══════════════════════════════════════════════════════
+let map, currentBase = 'satellite';
+let cityMarkersLayer, capitalLayer, bordersLayer, gridLayer;
+let currentTab = 'overview';
+let allCountryNames = Object.keys(COUNTRY_DB);
+
+// Tile sources
+const TILES = {
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Esri World Imagery'
+  },
+  terrain: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Esri World Topo'
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: 'CartoDB DarkMatter'
+  }
+};
+
+function initMap() {
+  map = L.map('map', {
+    center: [27.7172, 85.3240], // Nepal home
+    zoom: 3,
+    zoomControl: false,
+    attributionControl: false,
+    preferCanvas: true
+  });
+
+  // Base tile layer
+  window.baseTile = L.tileLayer(TILES.satellite.url, { maxZoom: 19 }).addTo(map);
+
+  // Country borders overlay (GeoJSON from CDN)
+  loadCountryBorders();
+
+  // Cities
+  addCities();
+
+  // Events
+  map.on('mousemove', onMapMove);
+  map.on('zoomend moveend', updateStatus);
+  map.on('click', onMapClick);
+
+  // Graticule (lat/lng grid)
+  addGraticule();
+
+  updateStatus();
+  startClock();
+  revealMap();
+}
+
+function loadCountryBorders() {
+  fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+    .then(r => r.json())
+    .then(data => {
+      bordersLayer = L.geoJSON(data, {
+        style: {
+          color: 'rgba(46,232,255,0.35)',
+          weight: 0.8,
+          fillColor: 'rgba(46,232,255,0.04)',
+          fillOpacity: 1
+        },
+        onEachFeature: (feature, layer) => {
+          layer.on({
+            mouseover: (e) => {
+              e.target.setStyle({ color: 'rgba(46,232,255,0.7)', fillColor: 'rgba(46,232,255,0.12)', weight: 1.5 });
+              const name = feature.properties.ADMIN || feature.properties.name;
+              showToast(`📍 ${name}`, 800);
+            },
+            mouseout: (e) => {
+              e.target.setStyle({ color: 'rgba(46,232,255,0.35)', fillColor: 'rgba(46,232,255,0.04)', weight: 0.8 });
+            },
+            click: (e) => {
+              const name = feature.properties.ADMIN || feature.properties.name;
+              L.DomEvent.stopPropagation(e);
+              selectCountry(name, e.latlng);
+            }
+          });
+        }
+      }).addTo(map);
+    })
+    .catch(() => {
+      // Silently handle if offline
+    });
+}
+
+function addCities() {
+  cityMarkersLayer = L.layerGroup();
+  capitalLayer = L.layerGroup();
+
+  CITIES.forEach(city => {
+    const isCapital = city.capital;
+    const size = city.pop > 10000000 ? 6 : city.pop > 5000000 ? 5 : 4;
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:${size}px;height:${size}px;border-radius:50%;
+        background:${isCapital ? '#d4af37' : 'rgba(46,232,255,0.7)'};
+        border:${isCapital ? '1.5px solid rgba(212,175,55,0.5)' : '1px solid rgba(46,232,255,0.3)'};
+        box-shadow:0 0 ${size*2}px ${isCapital ? 'rgba(212,175,55,0.4)' : 'rgba(46,232,255,0.3)'};
+        cursor:pointer;
+      "></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2]
+    });
+
+    const marker = L.marker([city.lat, city.lng], { icon })
+      .bindTooltip(`<span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#e2edf5;background:rgba(4,8,14,0.92);border:1px solid rgba(46,232,255,0.2);border-radius:5px;padding:4px 9px;white-space:nowrap;">
+        ${isCapital ? '★ ' : ''}${city.name}<br>
+        <span style="color:#6a839a;font-size:10px;">${city.country} · ${(city.pop/1e6).toFixed(1)}M</span>
+      </span>`, { className: '', direction: 'top', offset: [0, -4] });
+
+    marker.on('click', () => {
+      map.flyTo([city.lat, city.lng], Math.max(map.getZoom(), 6), { duration: 1.2 });
+      selectCountry(city.country, {lat: city.lat, lng: city.lng});
+      showToast(`${isCapital ? '★' : '●'} ${city.name} · ${city.country}`, 2000);
+    });
+
+    if (isCapital) {
+      marker.addTo(capitalLayer);
+    } else {
+      marker.addTo(cityMarkersLayer);
+    }
+  });
+
+  cityMarkersLayer.addTo(map);
+}
+
+function addGraticule() {
+  gridLayer = L.layerGroup();
+  // Lat lines every 30°
+  for (let lat = -60; lat <= 60; lat += 30) {
+    L.polyline([[-90, lat === 0 ? -180 : -180], [90, lat === 0 ? 180 : 180]].map(() => [lat, -180]), {
+      color: 'rgba(46,232,255,0.07)', weight: 0.5, dashArray: lat === 0 ? '4 4' : '2 6'
+    });
+    const line = L.polyline([[lat, -180], [lat, 180]], {
+      color: lat === 0 ? 'rgba(46,232,255,0.15)' : 'rgba(46,232,255,0.06)',
+      weight: lat === 0 ? 0.8 : 0.4,
+      dashArray: lat === 0 ? '4 4' : '2 8'
+    }).addTo(gridLayer);
+  }
+  // Lng lines every 30°
+  for (let lng = -180; lng <= 180; lng += 30) {
+    L.polyline([[-90, lng], [90, lng]], {
+      color: lng === 0 ? 'rgba(46,232,255,0.15)' : 'rgba(46,232,255,0.06)',
+      weight: lng === 0 ? 0.8 : 0.4,
+      dashArray: lng === 0 ? '4 4' : '2 8'
+    }).addTo(gridLayer);
+  }
+}
+
+// ─── MAP EVENTS ──────────────────────────────────────────
+function onMapMove(e) {
+  const { lat, lng } = e.latlng;
+  document.getElementById('cur-lat').textContent = lat.toFixed(4) + '°';
+  document.getElementById('cur-lng').textContent = lng.toFixed(4) + '°';
+}
+
+function updateStatus() {
+  if (!map) return;
+  const z = map.getZoom().toFixed(1);
+  document.getElementById('cur-zoom').textContent = z;
+  document.getElementById('stat-zoom').textContent = z;
+}
+
+function onMapClick(e) {
+  const { lat, lng } = e.latlng;
+  // Pulse effect
+  const pulse = L.circle([lat, lng], { radius: 50000, color: '#2ee8ff', weight: 1, fillOpacity: 0, opacity: 0.6 }).addTo(map);
+  setTimeout(() => map.removeLayer(pulse), 1200);
+}
+
+// ─── COUNTRY SELECTION ───────────────────────────────────
+function selectCountry(name, latlng) {
+  const db = findCountry(name);
+  if (!db) return;
+
+  // Update left panel
+  document.getElementById('sel-name').textContent = db.data.flag + ' ' + db.name;
+  document.getElementById('sel-pop').textContent = formatNum(db.data.pop);
+  document.getElementById('sel-area').textContent = formatNum(db.data.area) + ' km²';
+  document.getElementById('sel-gdp').textContent = formatGDP(db.data.gdp);
+  document.getElementById('sel-capital').textContent = db.data.capital;
+
+  // Update country panel
+  showCountryPanel(db.name, db.data);
+}
+
+function findCountry(name) {
+  const exact = COUNTRY_DB[name];
+  if (exact) return { name, data: exact };
+  const key = Object.keys(COUNTRY_DB).find(k =>
+    k.toLowerCase() === name.toLowerCase() || k.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(k.toLowerCase())
+  );
+  if (key) return { name: key, data: COUNTRY_DB[key] };
+  return null;
+}
+
+// ─── COUNTRY PANEL ───────────────────────────────────────
+function showCountryPanel(name, d) {
+  document.getElementById('cp-flag').textContent = d.flag || '';
+  document.getElementById('cp-name').textContent = name;
+  document.getElementById('cp-region').textContent = `${d.continent} · ${d.region}`;
+
+  const panel = document.getElementById('country-panel');
+  panel.classList.add('show');
+  renderCpTab(currentTab, name, d);
+}
+
+function cpTab(el, tab) {
+  document.querySelectorAll('.cp-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentTab = tab;
+  const name = document.getElementById('cp-name').textContent;
+  const d = COUNTRY_DB[name];
+  if (d) renderCpTab(tab, name, d);
+}
+
+function renderCpTab(tab, name, d) {
+  const body = document.getElementById('cp-body');
+  if (tab === 'overview') {
+    body.innerHTML = `
+      ${row('Capital', d.capital, 'accent')}
+      ${row('Continent', d.continent)}
+      ${row('Region', d.region)}
+      ${row('Population', formatNum(d.pop))}
+      ${row('Language(s)', d.language)}
+      ${row('Currency', d.currency)}
+      ${row('Timezone', d.timezone)}
+      ${row('Life Expectancy', d.lifeExp + ' yrs')}
+      <div class="bar-row">
+        <div class="bar-label"><span>HDI Score</span><span style="color:#2ee8ff">${d.hdi || '—'}</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(d.hdi||0)*100}%;background:linear-gradient(90deg,#2ee8ff,#0faacc)"></div></div>
+      </div>
+    `;
+  } else if (tab === 'geo') {
+    body.innerHTML = `
+      ${row('Area', formatNum(d.area) + ' km²', 'accent')}
+      ${row('Coastline', d.coastline === 'Landlocked' ? '🔒 Landlocked' : (d.coastline + ' km'))}
+      ${row('Relief', d.relief)}
+      ${row('Climate', d.climate)}
+      ${row('Neighbors', d.neighbors === 0 ? 'Island nation' : d.neighbors + ' countries')}
+      <div style="margin-top:12px;padding:10px;background:rgba(46,232,255,0.04);border-radius:6px;border:1px solid rgba(46,232,255,0.08)">
+        <div style="font-size:10px;color:#6a839a;margin-bottom:6px;letter-spacing:.08em">AREA COMPARISON</div>
+        <div class="bar-row">
+          <div class="bar-label"><span style="font-size:10px;color:#6a839a">vs Russia (largest)</span><span style="font-size:10px;color:#2ee8ff">${((d.area/17098246)*100).toFixed(2)}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min((d.area/17098246)*100,100)}%;background:linear-gradient(90deg,#d4af37,#f0a030)"></div></div>
+        </div>
+      </div>
+    `;
+  } else if (tab === 'economy') {
+    body.innerHTML = `
+      ${row('GDP (nominal)', formatGDP(d.gdp), 'gold')}
+      ${row('GDP per capita', '$' + Math.round(d.gdp / d.pop).toLocaleString())}
+      ${row('Currency', d.currency)}
+      <div class="bar-row" style="margin-top:8px">
+        <div class="bar-label"><span>GDP vs USA ($25.5T)</span><span style="color:#d4af37">${((d.gdp/25460e9)*100).toFixed(2)}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min((d.gdp/25460e9)*100,100)}%;background:linear-gradient(90deg,#d4af37,#f0a030)"></div></div>
+      </div>
+    `;
+  } else if (tab === 'people') {
+    body.innerHTML = `
+      ${row('Population', formatNum(d.pop))}
+      ${row('Language(s)', d.language)}
+      ${row('Life Expectancy', d.lifeExp + ' years')}
+      <div class="bar-row" style="margin-top:8px">
+        <div class="bar-label"><span>Pop. share of world</span><span style="color:#22dd88">${((d.pop/8100000000)*100).toFixed(2)}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min((d.pop/8100000000)*100*3,100)}%;background:linear-gradient(90deg,#22dd88,#0faacc)"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>Life Expectancy</span><span style="color:#22dd88">${d.lifeExp} yrs</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(d.lifeExp/90)*100}%;background:linear-gradient(90deg,#ff4466,#f0a030,#22dd88)" style="width:${(d.lifeExp/90)*100}%"></div></div>
+      </div>
+    `;
+  }
+}
+
+function row(key, val, cls='') {
+  return `<div class="cp-row"><span class="cp-key">${key.toUpperCase()}</span><span class="cp-val ${cls}">${val || '—'}</span></div>`;
+}
+
+function closeCountryPanel() {
+  document.getElementById('country-panel').classList.remove('show');
+}
+
+// ─── SEARCH ──────────────────────────────────────────────
+let acIndex = -1;
+document.getElementById('search-input').addEventListener('input', onSearchInput);
+document.getElementById('search-input').addEventListener('keydown', onSearchKey);
+document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+function onSearchInput() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  if (q.length < 1) { hideAC(); return; }
+
+  const matches = allCountryNames.filter(n => n.toLowerCase().includes(q)).slice(0, 8);
+
+  // Also check cities
+  const cityMatches = CITIES.filter(c => c.name.toLowerCase().includes(q)).slice(0, 3);
+
+  if (matches.length === 0 && cityMatches.length === 0) { hideAC(); return; }
+
+  const ac = document.getElementById('autocomplete');
+  ac.innerHTML = '';
+  matches.forEach((n, i) => {
+    const d = COUNTRY_DB[n];
+    ac.innerHTML += `<div class="ac-item" onclick="flyToCountry('${n}')">${d.flag||''} ${n}<span class="ac-region">${d.continent}</span></div>`;
+  });
+  cityMatches.forEach(c => {
+    ac.innerHTML += `<div class="ac-item" onclick="flyToCity(${c.lat},${c.lng},'${c.name}')">● ${c.name}<span class="ac-region">${c.country}</span></div>`;
+  });
+  ac.classList.add('show');
+  acIndex = -1;
+}
+
+function onSearchKey(e) {
+  const items = document.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown') { acIndex = Math.min(acIndex+1, items.length-1); highlightAC(items); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { acIndex = Math.max(acIndex-1, -1); highlightAC(items); e.preventDefault(); }
+  if (e.key === 'Escape') hideAC();
+}
+
+function highlightAC(items) {
+  items.forEach((el, i) => el.classList.toggle('selected', i === acIndex));
+}
+
+function hideAC() {
+  document.getElementById('autocomplete').classList.remove('show');
+  acIndex = -1;
+}
+
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  document.getElementById('search-input').value = '';
+  hideAC();
+
+  // Coords?
+  const coordMatch = q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]), lng = parseFloat(coordMatch[2]);
+    map.flyTo([lat, lng], 8, { duration: 1.5 });
+    echo(`📍 ${lat.toFixed(4)}°, ${lng.toFixed(4)}°`);
+    return;
+  }
+
+  // Country?
+  const found = findCountry(q);
+  if (found) { flyToCountry(found.name); return; }
+
+  // City?
+  const city = CITIES.find(c => c.name.toLowerCase().includes(q.toLowerCase()));
+  if (city) { flyToCity(city.lat, city.lng, city.name); return; }
+
+  echo(`⚠ No signal for "${q}"`);
+}
+
+function flyToCountry(name) {
+  const d = COUNTRY_DB[name];
+  if (!d) return;
+  document.getElementById('search-input').value = '';
+  hideAC();
+  // Find centroid from cities or use approximate
+  const city = CITIES.find(c => c.country === name && c.capital) || CITIES.find(c => c.country === name);
+  const lat = city ? city.lat : 20, lng = city ? city.lng : 0;
+  map.flyTo([lat, lng], 5, { duration: 1.8 });
+  selectCountry(name, { lat, lng });
+  echo(`✦ ${d.flag} ${name}`);
+  showToast(`Navigating to ${name}`, 1500);
+}
+
+function flyToCity(lat, lng, name) {
+  document.getElementById('search-input').value = '';
+  hideAC();
+  map.flyTo([lat, lng], 8, { duration: 1.5 });
+  echo(`● ${name}`);
+}
+
+function echo(msg) {
+  const el = document.getElementById('search-echo');
+  el.textContent = msg;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.textContent = '', 3000);
+}
+
+// ─── BASE TILE SWITCH ─────────────────────────────────────
+function switchBase(type) {
+  currentBase = type;
+  map.removeLayer(window.baseTile);
+  window.baseTile = L.tileLayer(TILES[type].url, { maxZoom: 19 }).addTo(map);
+  window.baseTile.bringToBack();
+  ['btn-sat','btn-ter','btn-dark'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById(`btn-${type === 'satellite' ? 'sat' : type === 'terrain' ? 'ter' : 'dark'}`).classList.add('active');
+  showToast(`Layer: ${type}`, 1000);
+}
+
+// ─── LAYER TOGGLES ───────────────────────────────────────
+function toggleLayer(name, el) {
+  const on = el.checked;
+  if (name === 'borders') {
+    if (bordersLayer) { on ? map.addLayer(bordersLayer) : map.removeLayer(bordersLayer); }
+  } else if (name === 'cities') {
+    if (cityMarkersLayer) { on ? map.addLayer(cityMarkersLayer) : map.removeLayer(cityMarkersLayer); }
+  } else if (name === 'capitals') {
+    if (capitalLayer) { on ? map.addLayer(capitalLayer) : map.removeLayer(capitalLayer); }
+  } else if (name === 'grid') {
+    if (gridLayer) { on ? map.addLayer(gridLayer) : map.removeLayer(gridLayer); }
+  }
+}
+
+// ─── CLOCK ───────────────────────────────────────────────
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const hh = String(now.getUTCHours()).padStart(2,'0');
+    const mm = String(now.getUTCMinutes()).padStart(2,'0');
+    const ss = String(now.getUTCSeconds()).padStart(2,'0');
+    document.getElementById('utc-time').textContent = `${hh}:${mm}:${ss}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+function showToast(msg, dur = 1800) {
+  const stack = document.getElementById('toast-stack');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  stack.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('out');
+    setTimeout(() => t.remove(), 350);
+  }, dur);
+}
+
+// ─── FORMATTERS ──────────────────────────────────────────
+function formatNum(n) {
+  if (!n) return '—';
+  if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(0) + 'K';
+  return n.toLocaleString();
+}
+
+function formatGDP(n) {
+  if (!n) return '—';
+  if (n >= 1e12) return '$' + (n/1e12).toFixed(2) + 'T';
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(1) + 'B';
+  return '$' + (n/1e6).toFixed(0) + 'M';
+}
+
+// ─── VEIL REVEAL ─────────────────────────────────────────
+function revealMap() {
+  const prog = document.getElementById('veil-prog');
+  let p = 0;
+  const iv = setInterval(() => {
+    p += Math.random() * 18;
+    if (p >= 100) { p = 100; clearInterval(iv); }
+    prog.style.width = p + '%';
+    if (p >= 100) {
+      setTimeout(() => {
+        const veil = document.getElementById('veil');
+        veil.style.opacity = '0';
+        setTimeout(() => veil.remove(), 900);
+        showToast('✦ INDRA ATLAS PRO online', 2000);
+      }, 400);
+    }
+  }, 120);
+}
+
+// ─── BOOT ────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(initMap, 300);
+});
+
+// ─── KEYBOARD SHORTCUTS ───────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== document.getElementById('search-input')) {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+  }
+  if (e.key === 'Escape') { closeCountryPanel(); hideAC(); }
+});
+
+// ─── CLICK OUTSIDE AC ────────────────────────────────────
+document.addEventListener('click', e => {
+  if (!document.getElementById('search-wrap').contains(e.target)) hideAC();
+});
+</script>
+
+</body>
+</html>

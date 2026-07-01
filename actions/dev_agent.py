@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 import json
 import re
 import subprocess
@@ -7,12 +7,10 @@ import sys
 import time
 from pathlib import Path
 
-
 def get_base_dir():
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 BASE_DIR = get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
@@ -21,11 +19,9 @@ MAX_FIX_ATTEMPTS = 5
 MODEL_PLANNER = "gemini-2.5-flash"
 MODEL_WRITER = "gemini-2.5-flash"
 
-
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
-
 
 def _get_model(model_name: str):
     from google import genai
@@ -38,18 +34,15 @@ def _get_model(model_name: str):
 
     return _W()
 
-
 def _strip_fences(text: str) -> str:
     text = text.strip()
     text = re.sub(r"^```[a-zA-Z]*\r?\n?", "", text)
     text = re.sub(r"\r?\n?```\s*$", "", text)
     return text.strip()
 
-
 def _is_rate_limit(error: Exception) -> bool:
     msg = str(error).lower()
     return "429" in msg or "quota" in msg or "resource_exhausted" in msg
-
 
 def _parse_traceback(
     output: str, project_files: list[str]
@@ -65,7 +58,6 @@ def _parse_traceback(
                 return pf, int(line_str)
 
     return None, None
-
 
 def _classify_error(output: str) -> str:
 
@@ -101,7 +93,6 @@ def _classify_error(output: str) -> str:
 
     return "none"
 
-
 def _has_error(output: str, run_command: str) -> bool:
 
     low = output.lower()
@@ -115,10 +106,8 @@ def _has_error(output: str, run_command: str) -> bool:
     error_type = _classify_error(output)
     return error_type != "none"
 
-
 class RateLimitError(Exception):
     pass
-
 
 def _plan_project(description: str, language: str) -> dict:
     model = _get_model(MODEL_PLANNER)
@@ -170,7 +159,6 @@ JSON:"""
         if _is_rate_limit(e):
             raise RateLimitError(str(e))
         raise
-
 
 def _write_file(
     file_info: dict,
@@ -258,7 +246,6 @@ Code for {file_path}:"""
             raise RateLimitError(str(e))
         raise
 
-
 def _install_dependencies(dependencies: list[str], project_dir: Path) -> str:
     if not dependencies:
         return "No external dependencies."
@@ -298,7 +285,6 @@ def _install_dependencies(dependencies: list[str], project_dir: Path) -> str:
     except Exception as e:
         return f"Install error (non-fatal): {e}"
 
-
 def _open_vscode(project_dir: Path) -> bool:
     vscode_candidates = [
         "code",
@@ -319,7 +305,6 @@ def _open_vscode(project_dir: Path) -> bool:
         except Exception:
             continue
     return False
-
 
 def _run_project(run_command: str, project_dir: Path, timeout: int = 30) -> str:
     print(f"[DevAgent] 🚀 Running: {run_command}")
@@ -356,7 +341,6 @@ def _run_project(run_command: str, project_dir: Path, timeout: int = 30) -> str:
     except Exception as e:
         return f"Run error: {e}"
 
-
 def _try_auto_install(error_output: str, project_dir: Path) -> bool:
     """ModuleNotFoundError varsa eksik paketi otomatik kurmaya çalışır."""
     pattern = re.compile(
@@ -381,7 +365,6 @@ def _try_auto_install(error_output: str, project_dir: Path) -> bool:
         return result.returncode == 0
     except Exception:
         return False
-
 
 def _fix_files(
     error_output: str,
@@ -475,7 +458,6 @@ Fixed code for {fix_path}:"""
             print(f"[DevAgent] ⚠️ Could not fix {fix_path}: {e}")
 
     return updated_codes
-
 
 def _build_project(
     description: str,
@@ -623,7 +605,6 @@ def _build_project(
     if speak:
         speak(msg)
     return f"{msg}\n\nLast error:\n{last_output[:600]}"
-
 
 def dev_agent(
     parameters: dict,

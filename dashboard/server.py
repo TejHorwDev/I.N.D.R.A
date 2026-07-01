@@ -28,7 +28,6 @@ try:
 except ImportError:
     pass
 
-# python-multipart is required for file uploads — optional dependency
 _UPLOAD_OK = False
 try:
     from fastapi import File as FastAPIFile
@@ -42,7 +41,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).parent / "static"
 PORT = 8000
 MAX_UPLOAD_MB = 500
-
 
 def _make_uploads_dir() -> Path:
     """Return (and create) the cross-platform uploads folder."""
@@ -58,9 +56,7 @@ def _make_uploads_dir() -> Path:
             pass
     return BASE_DIR / "uploads"
 
-
 UPLOADS_DIR = _make_uploads_dir()
-
 
 def _get_gemini_key() -> str | None:
     try:
@@ -71,21 +67,17 @@ def _get_gemini_key() -> str | None:
     except Exception:
         return None
 
-
 _KEY_CHARS = [
     c
     for c in (string.ascii_uppercase + string.digits)
     if c not in ("O", "I", "L", "0", "1")
 ]
 
-# ── AES-256-CBC ───────────────────────────────────────────────────────────────
 _AES_SALT = b"INDRA-DASHBOARD-v1"
-
 
 def _derive_key(session_key: str) -> bytes:
     """SHA-256(sessionKey‖salt) → 32-byte AES-256 key (microseconds, no PBKDF2 needed)."""
     return hashlib.sha256(session_key.encode("utf-8") + _AES_SALT).digest()
-
 
 def _decrypt_cbc(aes_key: bytes, enc_b64: str) -> str:
     """Decrypt base64(IV[16] ‖ ciphertext) with AES-256-CBC + PKCS7."""
@@ -100,13 +92,11 @@ def _decrypt_cbc(aes_key: bytes, enc_b64: str) -> str:
     unpadder = sym_pad.PKCS7(128).unpadder()
     return (unpadder.update(padded) + unpadder.finalize()).decode("utf-8")
 
-
-# ── CryptoJS (auto-download once, served locally) ─────────────────────────────
+                                                                                
 _CRYPTOJS_CDN = (
     "https://cdnjs.cloudflare.com/ajax/libs/" "crypto-js/4.2.0/crypto-js.min.js"
 )
 _CRYPTOJS_FILE = STATIC_DIR / "crypto-js.min.js"
-
 
 def _ensure_network_access(port: int) -> None:
     """Cross-platform, best-effort: open port in the OS firewall for LAN access.
@@ -124,7 +114,6 @@ def _ensure_network_access(port: int) -> None:
     import tempfile
     import threading
 
-    # ── Windows ──────────────────────────────────────────────────────────────
     if sys.platform == "win32":
         import ctypes
         import time
@@ -177,9 +166,8 @@ def _ensure_network_access(port: int) -> None:
         need_private = _network_is_public()
 
         if not need_port and not need_prog and not need_private:
-            return  # already fully configured
+            return                            
 
-        # Build a .bat file — netsh + powershell, runs fast when elevated
         bat_lines = ["@echo off"]
         if need_private:
             bat_lines.append(
@@ -204,7 +192,7 @@ def _ensure_network_access(port: int) -> None:
         bat_body = "\r\n".join(bat_lines) + "\r\n"
         fd, bat_path = tempfile.mkstemp(suffix=".bat", prefix="INDRA_fw_")
         try:
-            os.write(fd, bat_body.encode("mbcs"))  # Windows cmd.exe expects ANSI
+            os.write(fd, bat_body.encode("mbcs"))                                
             os.close(fd)
         except Exception:
             try:
@@ -213,7 +201,6 @@ def _ensure_network_access(port: int) -> None:
                 pass
             return
 
-        # ── Try running directly (succeeds when already admin) ────────────────
         try:
             r = subprocess.run([bat_path], capture_output=True, timeout=8, shell=True)
             if r.returncode == 0:
@@ -226,23 +213,21 @@ def _ensure_network_access(port: int) -> None:
         except Exception:
             pass
 
-        # ── ShellExecuteW: native UAC elevation (most reliable on Windows) ────
-        # ShellExecuteW with verb "runas" always shows the UAC dialog regardless
-        # of UAC level settings. Non-blocking — uvicorn is already running.
+                                                                                
+                                                                           
         print("[Dashboard] One-time network setup required.")
         print("[Dashboard] >>> A Windows security dialog will appear — click 'Yes' <<<")
         try:
             ret = ctypes.windll.shell32.ShellExecuteW(
-                None,  # hwnd  (no parent window)
-                "runas",  # verb  (request elevation)
-                bat_path,  # file  (our .bat)
-                None,  # params
-                None,  # working dir
-                0,  # SW_HIDE (run without a visible cmd window)
+                None,                            
+                "runas",                             
+                bat_path,                    
+                None,          
+                None,               
+                0,                                              
             )
             if int(ret) > 32:
-                # ShellExecuteW returns immediately; bat finishes in ~1 second.
-                # Sleep briefly so the rules are in place before the first retry.
+
                 time.sleep(2)
                 print(f"[Dashboard] Network setup complete — port {port} is open.")
                 print("[Dashboard] Refresh your phone browser to connect.")
@@ -254,7 +239,7 @@ def _ensure_network_access(port: int) -> None:
         except Exception as e:
             print(f"[Dashboard] Firewall setup error: {e}")
         finally:
-            # Cleanup after the bat has had time to run
+                                                       
             def _cleanup(path: str) -> None:
                 time.sleep(5)
                 try:
@@ -265,7 +250,6 @@ def _ensure_network_access(port: int) -> None:
             threading.Thread(target=_cleanup, args=(bat_path,), daemon=True).start()
         return
 
-    # ── macOS ─────────────────────────────────────────────────────────────────
     if sys.platform == "darwin":
         fw_ctl = "/usr/libexec/ApplicationFirewall/socketfilterfw"
         try:
@@ -276,7 +260,7 @@ def _ensure_network_access(port: int) -> None:
                 timeout=5,
             )
             if "disabled" in r.stdout.lower():
-                return  # firewall off — nothing to do
+                return                                
 
             py = sys.executable
             listed = subprocess.run(
@@ -286,7 +270,7 @@ def _ensure_network_access(port: int) -> None:
                 timeout=5,
             )
             if py in listed.stdout:
-                return  # already allowed
+                return                   
 
             print(
                 "[Dashboard] One-time network setup — enter your password in the macOS dialog."
@@ -301,10 +285,9 @@ def _ensure_network_access(port: int) -> None:
                 timeout=60,
             )
         except Exception:
-            pass  # macOS firewall is off by default — silent failure is fine
+            pass                                                             
         return
 
-    # ── Linux ─────────────────────────────────────────────────────────────────
     def _privileged(cmd: list[str]) -> bool:
         for prefix in (["pkexec"], ["sudo", "-n"]):
             try:
@@ -315,7 +298,7 @@ def _ensure_network_access(port: int) -> None:
                 pass
         return False
 
-    try:  # ufw
+    try:       
         r = subprocess.run(["ufw", "status"], capture_output=True, text=True, timeout=5)
         if "active" in r.stdout.lower():
             if _privileged(["ufw", "allow", f"{port}/tcp"]):
@@ -326,7 +309,7 @@ def _ensure_network_access(port: int) -> None:
     except FileNotFoundError:
         pass
 
-    try:  # firewalld
+    try:             
         r = subprocess.run(
             ["firewall-cmd", "--state"],
             capture_output=True,
@@ -347,7 +330,7 @@ def _ensure_network_access(port: int) -> None:
     except FileNotFoundError:
         pass
 
-    try:  # iptables (not persistent but works until reboot)
+    try:                                                    
         r = subprocess.run(
             ["iptables", "-L", "INPUT", "-n"], capture_output=True, timeout=5
         )
@@ -371,8 +354,7 @@ def _ensure_network_access(port: int) -> None:
                     f"[Dashboard] Run manually:  sudo iptables -A INPUT -p tcp --dport {port} -j ACCEPT"
                 )
     except FileNotFoundError:
-        pass  # no iptables means firewall is probably off — nothing to do
-
+        pass                                                              
 
 def _ensure_crypto_js() -> None:
     if _CRYPTOJS_FILE.exists():
@@ -387,16 +369,13 @@ def _ensure_crypto_js() -> None:
         print(f"[Dashboard] CryptoJS download failed: {e}")
         print(f"[Dashboard] Encryption will fall back to CDN load on client.")
 
-
 _ensure_crypto_js()
 
-
-# ── helpers ───────────────────────────────────────────────────────────────────
-
+                                                                                
 
 def _local_ip() -> str:
     """Return the best LAN-facing IPv4 address, no internet required."""
-    # Method 1: route trick (fast, works when internet is available)
+                                                                    
     for probe in ("8.8.8.8", "1.1.1.1", "192.168.1.1"):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -409,7 +388,6 @@ def _local_ip() -> str:
         except Exception:
             pass
 
-    # Method 2: hostname resolution (works offline on most systems)
     try:
         ip = socket.gethostbyname(socket.gethostname())
         if not ip.startswith("127."):
@@ -417,7 +395,6 @@ def _local_ip() -> str:
     except Exception:
         pass
 
-    # Method 3: enumerate all interfaces (fully offline, no external deps)
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             ip = info[4][0]
@@ -428,35 +405,31 @@ def _local_ip() -> str:
 
     return "127.0.0.1"
 
-
 def _read(name: str) -> str:
     return (STATIC_DIR / name).read_text(encoding="utf-8")
 
-
-# ── DashboardServer ───────────────────────────────────────────────────────────
-
+                                                                                
 
 class DashboardServer:
 
     def __init__(self):
         self._ip = _local_ip()
         self._tokens: set[str] = set()
-        self._token_keys: dict[str, str] = {}  # auth_token → session_key
-        self._aes_cache: dict[str, bytes] = {}  # session_key → AES bytes
+        self._token_keys: dict[str, str] = {}                            
+        self._aes_cache: dict[str, bytes] = {}                           
         self._clients: set[WebSocket] = set()
         self._history: list[dict] = []
         self._command_queue = asyncio.Queue()
         self._wake_callback = None
         self._connect_callback = None
         self._pending_keys: dict[str, float] = {}
-        self._device_sessions: dict[str, dict] = {}  # device_token → {session_key}
+        self._device_sessions: dict[str, dict] = {}                                
         self._phone_audio_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
         self._uploads_dir = UPLOADS_DIR
         self._login_html = _read("login.html")
         self._app_html = _read("app.html")
         self.public_url = None
-        
-        # Load or create persistent pairing_id for Magic Link
+
         import json
         import uuid
         self._cfg_path = BASE_DIR / "config" / "INDRA_mobile.json"
@@ -492,7 +465,6 @@ class DashboardServer:
         except Exception:
             pass
 
-    # ── one-time key management ───────────────────────────────────────────
 
     def new_key(self, expiry_secs: int = 600) -> str:
         now = time.time()
@@ -532,7 +504,6 @@ class DashboardServer:
         except Exception:
             return None
 
-    # ── callbacks ────────────────────────────────────────────────────────
 
     def set_wake_callback(self, fn) -> None:
         self._wake_callback = fn
@@ -540,7 +511,6 @@ class DashboardServer:
     def set_connect_callback(self, fn) -> None:
         self._connect_callback = fn
 
-    # ── broadcast ────────────────────────────────────────────────────────
 
     async def broadcast(self, msg: dict) -> None:
         self._history.append(msg)
@@ -554,7 +524,6 @@ class DashboardServer:
                 dead.add(ws)
         self._clients -= dead
 
-    # ── FastAPI app ───────────────────────────────────────────────────────
 
     def _build_app(self) -> "FastAPI":
         app = FastAPI(docs_url=None, redoc_url=None)
@@ -563,7 +532,6 @@ class DashboardServer:
             tok = req.headers.get("authorization", "").removeprefix("Bearer ").strip()
             return bool(tok) and tok in self._tokens
 
-        # serve CryptoJS from local cache, fallback to CDN redirect
         @app.get("/static/crypto.js")
         async def serve_crypto():
             if _CRYPTOJS_FILE.exists():
@@ -580,9 +548,8 @@ class DashboardServer:
 
         @app.get("/", response_class=HTMLResponse)
         async def index():
-            # Auth is handled client-side via sessionStorage bearer token.
-            # Server-side header auth can't work here because browser navigations
-            # don't send custom headers (location.href doesn't carry Authorization).
+
+                                                                                    
             html = self._app_html.replace("__IP__", self._ip).replace(
                 "__PORT__", str(PORT)
             )
@@ -594,12 +561,12 @@ class DashboardServer:
             entered = str(body.get("pin", "")).strip().upper()
             now = time.time()
             if entered in self._pending_keys and self._pending_keys[entered] > now:
-                del self._pending_keys[entered]  # one-time use
+                del self._pending_keys[entered]                
                 tok = secrets.token_urlsafe(32)
                 self._tokens.add(tok)
                 self._token_keys[tok] = entered
                 self._save_config()
-                self._aes_key(entered)  # pre-derive & cache
+                self._aes_key(entered)                      
                 if self._connect_callback:
                     self._connect_callback()
                 asyncio.create_task(
@@ -607,7 +574,7 @@ class DashboardServer:
                         {"type": "sys", "text": "Remote connection established."}
                     )
                 )
-                # Bearer token in response body — no cookies needed (works on any browser/HTTP)
+                                                                                               
                 return JSONResponse({"ok": True, "token": tok})
             return JSONResponse(
                 {"ok": False, "error": "Invalid or expired key"}, status_code=401
@@ -653,7 +620,6 @@ class DashboardServer:
                 )
             )
 
-            # Mobile app JSON support
             if "application/json" in req.headers.get("accept", ""):
                 return JSONResponse({"token": tok, "pairing_id": self.pairing_id})
 
@@ -736,7 +702,6 @@ class DashboardServer:
                 self._wake_callback()
             return JSONResponse({"ok": True})
 
-        # ── Phone mic real-time audio → Gemini Live ──────────────────────────
 
         @app.websocket("/ws/phone-audio")
         async def phone_audio_ws(websocket: WebSocket, token: str = ""):
@@ -756,7 +721,7 @@ class DashboardServer:
                             {"data": data, "mime_type": "audio/pcm"}
                         )
                     except asyncio.QueueFull:
-                        pass  # drop frame rather than block
+                        pass                                
             except WebSocketDisconnect:
                 pass
             finally:
@@ -764,7 +729,6 @@ class DashboardServer:
                     self.broadcast({"type": "sys", "text": "Phone microphone stopped."})
                 )
 
-        # ── Screen Sharing ────────────────────────────────────────────────────────
         def generate_screen_frames():
             import mss
             import io
@@ -772,14 +736,13 @@ class DashboardServer:
             import time
 
             with mss.mss() as sct:
-                # Use the primary monitor
+                                         
                 monitor = sct.monitors[1]
                 while True:
                     try:
                         sct_img = sct.grab(monitor)
                         img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                        
-                        # Resize to reduce bandwidth (e.g. max 1280 width)
+
                         max_w = 1280
                         if img.width > max_w:
                             ratio = max_w / img.width
@@ -791,22 +754,21 @@ class DashboardServer:
 
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-                        time.sleep(0.1)  # ~10 FPS
+                        time.sleep(0.1)           
                     except Exception:
                         time.sleep(1)
 
         @app.get("/api/screen-stream")
         async def screen_stream(req: Request, token: str = ""):
-            # We allow token in query param because <img> tags can't send headers easily
+                                                                                        
             tok = token.strip()
             if not tok or tok not in self._tokens:
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
             return StreamingResponse(generate_screen_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
-        # ── File sharing ──────────────────────────────────────────────────────
 
         def _safe_filename(raw: str) -> str:
-            name = Path(raw).name  # strip path components
+            name = Path(raw).name                         
             name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(". ")
             return name or "upload"
 
@@ -890,7 +852,7 @@ class DashboardServer:
 
         @app.get("/uploads/{filename}")
         async def download_file(filename: str, token: str = ""):
-            # Auth via query param — browser <a download> can't send custom headers
+                                                                                   
             tok = token.strip()
             if not tok or tok not in self._tokens:
                 return JSONResponse({"error": "Unauthorized"}, status_code=401)
@@ -934,7 +896,6 @@ class DashboardServer:
 
         return app
 
-    # ── serve ─────────────────────────────────────────────────────────────
 
     async def _serve_alias(self) -> None:
         """Second HTTPS server on PORT+1 sharing the same app and in-memory state.
@@ -965,8 +926,7 @@ class DashboardServer:
             )
             return
 
-        # Firewall setup runs in a thread — uvicorn starts immediately,
-        # no waiting for UAC dialogs or subprocess timeouts.
+                                                            
         asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT)
 
         use_ssl = self._ssl_enabled()
@@ -998,13 +958,14 @@ class DashboardServer:
             tunnel = ngrok.connect(f"https://{self._ip}:{PORT}" if use_ssl else PORT, bind_tls=True)
             self.public_url = tunnel.public_url
             print(f"[Dashboard] Global URL: {self.public_url}")
-            
-            # Broadcast to Magic Link
-            try:
-                requests.post(f"https://ntfy.sh/INDRA_link_{self.pairing_id}", data=self.public_url.encode("utf-8"), timeout=5)
-            except Exception as e:
-                print(f"[Dashboard] Failed to broadcast Magic Link: {e}")
-                
+
+            import threading
+            def _ntfy_broadcast():
+                try:
+                    requests.post(f"https://ntfy.sh/INDRA_link_{self.pairing_id}", data=self.public_url.encode("utf-8"), timeout=3)
+                except Exception:
+                    pass # Silently fail, it's just a convenience broadcast
+            threading.Thread(target=_ntfy_broadcast, daemon=True).start()
         except Exception as e:
             print(f"[Dashboard] Ngrok failed to start: {e}")
             

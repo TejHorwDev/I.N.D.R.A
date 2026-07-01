@@ -10,16 +10,16 @@ from pathlib import Path
 
 # pylint: disable=all
 
+import hashlib
+
+
 
 # --- Frozen / noconsole stdout guard ---
 if getattr(sys, "frozen", False):
     _devnull = open(os.devnull, "w")
-    if sys.stdout is None:
-        sys.stdout = _devnull
-    if sys.stderr is None:
-        sys.stderr = _devnull
-    if sys.stdin is None:
-        sys.stdin = open(os.devnull, "r")
+    sys.stdout = _devnull
+    sys.stderr = _devnull
+    sys.stdin = open(os.devnull, "r")
 
     # Suppress ALL console windows from any subprocess spawned by the frozen app
     import subprocess as _sp
@@ -32,6 +32,16 @@ if getattr(sys, "frozen", False):
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false;qt.text.font.*=false"
+os.environ["QT_OPENGL"] = "desktop" # Force hardware acceleration to prevent software rendering CPU spike
+os.environ["QT_SCALE_FACTOR"] = "1"
+
+# Elevate process priority to bypass Windows background app throttling (fixes 5s audio lag in --noconsole)
+import psutil
+try:
+    psutil.Process(os.getpid()).nice(psutil.HIGH_PRIORITY_CLASS)
+except Exception:
+    pass
+
 import sounddevice as sd
 from google import genai
 from google.genai import types
@@ -112,6 +122,9 @@ CHANNELS = 1
 SEND_SAMPLE_RATE = 16000
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE = 1024
+# Larger playback blocksize = fewer underruns = smoother voice
+_PLAY_BLOCKSIZE = 4096   # ~170ms per block at 24 kHz — smooth and stable
+_PLAY_BUFFER_SEC = 0.3  # Pre-fill 300ms of audio before starting playback
 
 
 def _get_api_key() -> str:
@@ -140,6 +153,22 @@ def _clean_transcript(text: str) -> str:
 
 
 TOOL_DECLARATIONS = [
+    {
+        "name": "game_scanner",
+        "description": "Scans the system for installed games via Registry and common game directories.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {},
+        },
+    },
+    {
+        "name": "open_api_settings",
+        "description": "Opens the settings page for the user to insert optional API keys for ElevenLabs, Vision, and OpenWeather.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {},
+        },
+    },
     {
         "name": "open_app",
         "description": (
@@ -994,13 +1023,17 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "ui_controller",
-        "description": "Controls the INDRA User Interface. Use this when the user asks you to open or close the webcam, activity log, system monitor, or widgets.",
+        "description": "Controls the INDRA User Interface. Use this when the user asks you to open/close widgets, or to OPEN THE ATLAS MAP. If they ask to show a specific country, city, street, or landmark on the map, use the 'locate_place' action and provide the target_place.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "action": {
                     "type": "STRING",
-                    "description": "open_logs | close_logs | open_sys | close_sys | open_vision | close_vision | open_webcam | close_webcam | open_remote | open_time | close_time | open_title | close_title | open_status | close_status | open_controls | close_controls | open_upload | close_upload | open_cmd | close_cmd | open_all | close_all | fullscreen_on | fullscreen_off | hide_to_tray | show_from_tray | quit_app",
+                    "description": "switch_vayu | switch_indra | switch_agni | open_logs | close_logs | open_sys | close_sys | open_vision | close_vision | open_webcam | close_webcam | open_agents | close_agents | open_remote | open_time | close_time | open_title | close_title | open_status | close_status | open_controls | close_controls | open_upload | close_upload | open_cmd | close_cmd | open_games | close_games | open_all | close_all | fullscreen_on | fullscreen_off | hide_to_tray | show_from_tray | quit_app | open_atlas | close_atlas | locate_place",
+                },
+                "target_place": {
+                    "type": "STRING",
+                    "description": "The name of the country, city, or place to locate when using the locate_place action.",
                 },
             },
             "required": ["action"],
@@ -1097,6 +1130,7 @@ TOOL_DECLARATIONS = [
 # --- Plugin system ---
 
 
+
 class INDRALive:
 
     def __init__(self, ui: INDRAUI):
@@ -1130,6 +1164,14 @@ class INDRALive:
     def _on_text_command(self, text: str):
         if not self._loop or not self.session:
             return
+        
+        # Intercept trigger phrases instantly
+        t = text.lower()
+        if "vayu activate" in t or "activate vayu" in t:
+            self.ui._win._ui_cmd_sig.emit("switch_vayu")
+        elif "indra activate" in t or "activate indra" in t or "deactivate vayu" in t:
+            self.ui._win._ui_cmd_sig.emit("switch_indra")
+
         asyncio.run_coroutine_threadsafe(
             self.session.send_client_content(
                 turns=[types.Content(role="user", parts=[types.Part.from_text(text=text)])], turn_complete=True
@@ -1193,7 +1235,7 @@ class INDRALive:
         parts.append(sys_prompt)
 
         return types.LiveConnectConfig(
-            response_modalities=["AUDIO"],
+            # response_modalities omitted
             output_audio_transcription={},
             input_audio_transcription={},
             system_instruction="\n".join(parts),
@@ -1232,7 +1274,11 @@ class INDRALive:
         result = "Done."
 
         try:
-            if name == "open_app":
+            if name == "open_api_settings":
+                self.ui._safe_cmd("API_KEYS")
+                result = "Opened API Keys settings overlay."
+
+            elif name == "open_app":
                 r = await loop.run_in_executor(
                     None,
                     lambda: open_app(parameters=args, response=None, player=self.ui),
@@ -1330,9 +1376,28 @@ class INDRALive:
                 )
                 result = r or "Network scan complete."
 
+            elif name == "game_scanner":
+                try:
+                    import actions.game_scanner as game_scanner_mod
+                    import importlib
+                    importlib.reload(game_scanner_mod)
+                    r = await loop.run_in_executor(None, game_scanner_mod.scan_games)
+                    result = r or "No games found."
+                except Exception as e:
+                    result = f"Failed to scan games: {e}"
+
             elif name == "ui_controller":
                 action = args.get("action", "")
-                if action == "open_logs" or action == "close_logs":
+                if action == "switch_vayu":
+                    self.ui._win._ui_cmd_sig.emit("switch_vayu")
+                    result = "Vayu interface activated."
+                elif action == "switch_agni":
+                    self.ui._win._ui_cmd_sig.emit("switch_agni")
+                    result = "Agni interface activated."
+                elif action == "switch_indra":
+                    self.ui._win._ui_cmd_sig.emit("switch_indra")
+                    result = "Indra interface restored."
+                elif action == "open_logs" or action == "close_logs":
                     self.ui.toggle_activity_log()
                     result = "Activity log toggled."
                 elif action == "open_sys" or action == "close_sys":
@@ -1344,6 +1409,12 @@ class INDRALive:
                 elif action == "open_webcam" or action == "close_webcam":
                     self.ui.toggle_webcam_panel()
                     result = "Live Webcam feed toggled."
+                elif action == "open_agents" or action == "close_agents":
+                    self.ui.toggle_agents_panel()
+                    result = "Active agents panel toggled."
+                elif action == "open_games" or action == "close_games":
+                    self.ui._win._ui_cmd_sig.emit("games")
+                    result = "Games panel toggled."
                 elif action == "open_remote":
                     self.ui.open_remote()
                     result = "Remote control panel opened."
@@ -1374,6 +1445,16 @@ class INDRALive:
                 elif action == "show_from_tray":
                     self.ui._win._ui_cmd_sig.emit("show_from_tray")
                     result = "INDRA restored from system tray to fullscreen."
+                elif action == "open_atlas":
+                    self.ui._win._ui_cmd_sig.emit("open_atlas")
+                    result = "Atlas interface opened."
+                elif action == "close_atlas":
+                    self.ui._win._ui_cmd_sig.emit("close_atlas")
+                    result = "Atlas interface closed."
+                elif action == "locate_place":
+                    target = args.get("target_place", "")
+                    self.ui._win._ui_cmd_sig.emit(f"locate_place|{target}")
+                    result = f"Locating {target} on the Atlas."
                 elif action == "quit_app":
                     result = "Shutting down. Goodbye, sir."
                     # Schedule hard exit after 2 seconds so farewell audio can play
@@ -1540,23 +1621,48 @@ class INDRALive:
     async def _listen_audio(self):
         print("[INDRA] 🎤 Mic started")
         loop = asyncio.get_event_loop()
+        import webrtcvad
+        
+        vad = webrtcvad.Vad(3) # 3 is most aggressive at filtering non-human noise
+        _audio_buffer = bytearray()
+        _speech_detected = False
 
         def callback(indata, frames, time_info, status):
+            nonlocal _audio_buffer, _speech_detected
             with self._speaking_lock:
                 INDRA_speaking = self._is_speaking
+                
             if not INDRA_speaking and not self.ui.muted and not self._phone_active:
-                data = indata.tobytes()
-                loop.call_soon_threadsafe(
-                    self.out_queue.put_nowait, {"data": data, "mime_type": "audio/pcm;rate=16000"}
-                )
+                raw_bytes = indata.tobytes()
+                try:
+                    if vad.is_speech(raw_bytes, 16000):
+                        _speech_detected = True
+                except Exception:
+                    pass
+
+                _audio_buffer.extend(raw_bytes)
+
+                # Send ~270ms chunks to avoid flooding WebSocket (9 * 30ms)
+                if len(_audio_buffer) >= 8640:
+                    if _speech_detected:
+                        data_to_send = bytes(_audio_buffer)
+                    else:
+                        data_to_send = b'\x00' * len(_audio_buffer)
+
+                    loop.call_soon_threadsafe(
+                        self.out_queue.put_nowait, {"data": data_to_send, "mime_type": "audio/pcm;rate=16000"}
+                    )
+                    _audio_buffer.clear()
+                    _speech_detected = False
 
         try:
             with sd.InputStream(
                 samplerate=SEND_SAMPLE_RATE,
                 channels=CHANNELS,
                 dtype="int16",
-                blocksize=CHUNK_SIZE,
                 callback=callback,
+                blocksize=480, # Exactly 30ms at 16000Hz for WebRTC VAD
+                latency='low',
             ):
                 print("[INDRA] 🎤 Mic stream open")
                 while True:
@@ -1573,10 +1679,8 @@ class INDRALive:
             while True:
                 async for response in self.session.receive():
 
-                    if response.data:
-                        if self._turn_done_event and self._turn_done_event.is_set():
-                            self._turn_done_event.clear()
-                        self.audio_in_queue.put_nowait(response.data)
+                    if getattr(response, "data", None):
+                        pass # Removed to avoid duplicate audio or garbage data
 
                     if response.server_content:
                         sc = response.server_content
@@ -1588,6 +1692,10 @@ class INDRALive:
                                 
                         if sc.model_turn:
                             for part in sc.model_turn.parts:
+                                if part.inline_data:
+                                    if self._turn_done_event and self._turn_done_event.is_set():
+                                        self._turn_done_event.clear()
+                                    self.audio_in_queue.put_nowait(part.inline_data.data)
                                 if part.text:
                                     txt = _clean_transcript(part.text)
                                     if txt:
@@ -1652,40 +1760,106 @@ class INDRALive:
             raise
 
     async def _play_audio(self):
+        """High-quality, jitter-buffered audio playback engine.
+        
+        Uses a dedicated background thread with a ring buffer to decouple
+        network arrival timing from playback timing, eliminating clicks/stutters.
+        """
+        import threading
+        import collections
         print("[INDRA] 🔊 Play started")
 
-        stream = sd.RawOutputStream(
-            samplerate=RECEIVE_SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="int16",
-            blocksize=CHUNK_SIZE,
-        )
-        stream.start()
-
+        # ── Find best output device: prefer WASAPI for lowest latency ──────
+        device_idx = None
         try:
-            while True:
+            devices = sd.query_devices()
+            # Prefer Headphones WASAPI for best sound quality
+            for priority_name in ["Headphones (Realtek(R) Audio), Windows WASAPI",
+                                   "Speakers (Realtek(R) Audio), Windows WASAPI",
+                                   "Headphones (Realtek(R) Audio)",
+                                   "Speakers (Realtek(R) Audio)"]:
+                for i, d in enumerate(devices):
+                    if d['name'] == priority_name and d['max_output_channels'] > 0:
+                        device_idx = i
+                        break
+                if device_idx is not None:
+                    break
+        except Exception:
+            pass
+
+        # ── Shared ring buffer between async receiver and sync player ───────
+        # Each entry is a raw bytes chunk from the AI
+        _buf: collections.deque = collections.deque()
+        _buf_lock = threading.Lock()
+        _buf_ready = threading.Event()   # signals the player thread
+        _stop_event = threading.Event()
+
+        # bytes per play block (2 bytes per int16 sample, mono)
+        _block_bytes = _PLAY_BLOCKSIZE * 2
+        _silence_block = b'\x00' * _block_bytes
+
+        # ── Producer: move chunks from asyncio queue → ring buffer ──────────
+        async def _produce():
+            while not _stop_event.is_set():
                 try:
-                    chunk = await asyncio.wait_for(
-                        self.audio_in_queue.get(), timeout=0.1
-                    )
+                    chunk = await asyncio.wait_for(self.audio_in_queue.get(), timeout=0.2)
+                    with _buf_lock:
+                        _buf.append(chunk)
+                    _buf_ready.set()
+                    self.set_speaking(True)
                 except asyncio.TimeoutError:
+                    # No new audio — check if turn is done
                     if (
                         self._turn_done_event
                         and self._turn_done_event.is_set()
                         and self.audio_in_queue.empty()
+                        and len(_buf) == 0
                     ):
                         self.set_speaking(False)
                         self._turn_done_event.clear()
-                    continue
-                self.set_speaking(True)
-                await asyncio.to_thread(stream.write, chunk)
+
+        def _consume():
+            try:
+                stream_kwargs = dict(
+                    samplerate=RECEIVE_SAMPLE_RATE,
+                    channels=CHANNELS,
+                    dtype="int16",
+                    latency='low'
+                )
+                if device_idx is not None:
+                    stream_kwargs["device"] = device_idx
+
+                with sd.RawOutputStream(**stream_kwargs) as stream:
+                    stream.start()
+
+                    while not _stop_event.is_set():
+                        _buf_ready.wait(timeout=0.1)
+                        _buf_ready.clear()
+
+                        raw = b''
+                        with _buf_lock:
+                            if _buf:
+                                raw = b''.join(_buf)
+                                _buf.clear()
+
+                        if raw:
+                            stream.write(raw)
+
+            except Exception as e:
+                print(f"[INDRA] ❌ Play thread: {e}")
+
+        # ── Start consumer thread, then run producer in event loop ──────────
+        t = threading.Thread(target=_consume, daemon=True, name="IndraAudioPlayer")
+        t.start()
+        try:
+            await _produce()
         except Exception as e:
             print(f"[INDRA] ❌ Play: {e}")
             raise
         finally:
+            _stop_event.set()
+            _buf_ready.set()  # wake sleeping consumer so it can exit
             self.set_speaking(False)
-            stream.stop()
-            stream.close()
 
     async def _relay_phone_audio(self) -> None:
         """Forward phone mic PCM chunks from dashboard queue into the Gemini Live session."""
@@ -1709,6 +1883,7 @@ class INDRALive:
     def _on_phone_connected(self) -> None:
         self.ui.write_log("SYS: Phone connected via Remote Dashboard.")
         self.ui.notify_phone_connected()
+
 
     # ── dashboard command relay ─────────────────────────────────────────────
 
@@ -1801,8 +1976,12 @@ class INDRALive:
                         tg.create_task(self._relay_phone_audio())
 
             except Exception as e:
-                print(f"[INDRA] Error: {e}")
-                traceback.print_exc()
+                err_str = str(e)
+                if "1006" in err_str or "unhandled errors in a TaskGroup" in err_str or "timeout" in err_str.lower() or "timed out" in err_str.lower() or "WinError 64" in err_str or "WinError 10054" in err_str:
+                    print(f"[INDRA] Connection dropped: {e} (Reconnecting...)")
+                else:
+                    print(f"[INDRA] Error: {e}")
+                    traceback.print_exc()
             finally:
                 self.session = None
 

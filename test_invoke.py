@@ -23,7 +23,7 @@ def thread_func():
     import time
     time.sleep(1)
     print("[BG Thread] Calling invokeMethod...")
-    # PyQt6 invokeMethod with Q_ARG
+                                   
     from PyQt6.QtCore import Q_ARG
     QMetaObject.invokeMethod(win, "my_slot", Qt.ConnectionType.QueuedConnection, Q_ARG(str, "Hello from thread!"))
     print("[BG Thread] invokeMethod done")

@@ -1,0 +1,14 @@
+INDRA AI - Minimum System Requirements
+======================================
+
+Because INDRA offloads the heavy AI processing to Google's cloud servers via WebSocket, the local application is incredibly lightweight. The app primarily handles UI rendering, audio streaming, and screen capture.
+
+Here are the Minimum System Requirements for 100% flawless, zero-lag performance:
+
+* Operating System: Windows 10 or Windows 11 (64-bit)
+* Processor (CPU): Intel Core i3 / AMD Ryzen 3 (or any modern dual-core/quad-core processor from the last 8-10 years)
+* Memory (RAM): 4 GB minimum (8 GB recommended). The INDRA app itself only consumes about 150-300 MB of RAM while running.
+* Graphics (GPU): Basic Integrated Graphics (Intel HD / AMD Radeon) that supports OpenGL. Hardware acceleration is utilized to draw the glassmorphism UI smoothly without burdening the CPU.
+* Storage: ~300 MB of free disk space for the installation.
+* Internet Connection: A stable broadband connection (at least 5 Mbps Upload/Download). Because INDRA streams real-time audio chunks, a stable connection without packet loss is the most critical requirement for instant speed.
+* Peripherals: A working microphone and speakers/headphones.

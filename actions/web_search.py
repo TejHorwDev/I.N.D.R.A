@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 web_search.py – INDRA Advanced Internet Search Engine
 ======================================================
@@ -37,17 +37,14 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-# ----------------------------------------------------------------------
-# Lazy imports
-# ----------------------------------------------------------------------
+              
+                                                                        
 _DDGS = None
 _GENAI = None
 _REQUESTS = None
 
-
 def _import_ddgs():
     return False
-
 
 def _import_genai():
     global _GENAI
@@ -60,7 +57,6 @@ def _import_genai():
             _GENAI = False
     return _GENAI
 
-
 def _import_requests():
     global _REQUESTS
     if _REQUESTS is None:
@@ -72,20 +68,16 @@ def _import_requests():
             _REQUESTS = False
     return _REQUESTS
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Path & config
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
-
 BASE_DIR = _get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
-
 
 @lru_cache(maxsize=1)
 def _load_config() -> dict:
@@ -95,29 +87,24 @@ def _load_config() -> dict:
     except Exception:
         return {}
 
-
 def _get_api_key(service: str = "gemini") -> str:
     cfg = _load_config()
     key = cfg.get(f"{service}_api_key", "")
     if not key and service == "gemini":
-        key = cfg.get("gemini_api_key", "")  # fallback
+        key = cfg.get("gemini_api_key", "")            
     if not key:
         raise RuntimeError(f"{service} API key not found in config.")
     return key
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Simple in‑memory cache (TTL)
-# ----------------------------------------------------------------------
 _CACHE: Dict[str, Tuple[float, Any]] = {}
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL = 300  # 5 minutes
-
+_CACHE_TTL = 300             
 
 def _cache_key(*args) -> str:
     raw = "|".join(str(a) for a in args)
     return hashlib.sha256(raw.encode()).hexdigest()
-
 
 def _cache_get(key: str) -> Optional[Any]:
     with _CACHE_LOCK:
@@ -129,20 +116,17 @@ def _cache_get(key: str) -> Optional[Any]:
                 del _CACHE[key]
     return None
 
-
 def _cache_set(key: str, value: Any) -> None:
     with _CACHE_LOCK:
         _CACHE[key] = (time.time(), value)
-        # Limit cache size
+                          
         if len(_CACHE) > 200:
-            # remove oldest
+                           
             oldest = min(_CACHE.items(), key=lambda x: x[1][0])
             del _CACHE[oldest[0]]
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Backend: Gemini Grounding (Google Search)
-# ----------------------------------------------------------------------
 def _gemini_search(query: str, max_retries: int = 2) -> str:
     genai = _import_genai()
     if not genai:
@@ -167,10 +151,8 @@ def _gemini_search(query: str, max_retries: int = 2) -> str:
             raise e
     raise RuntimeError("Gemini grounding failed after retries.")
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Backend: DuckDuckGo Custom Scraper
-# ----------------------------------------------------------------------
 def _ddg_search(query: str, max_results: int = 5) -> List[Dict]:
     requests = _import_requests()
     if not requests:
@@ -212,7 +194,6 @@ def _ddg_search(query: str, max_results: int = 5) -> List[Dict]:
         
     return results
 
-
 def _synthesize_results(query: str, results: List[Dict]) -> str:
     if not results:
         return f"No results found for: {query}"
@@ -240,18 +221,15 @@ def _synthesize_results(query: str, results: List[Dict]) -> str:
                 return response.text.strip()
         except Exception as e:
             print(f"[WebSearch] Synthesis failed: {e}")
-            
-    # Fallback to the best snippet if synthesis fails (e.g. rate limit)
+
     best_snippet = results[0].get("snippet", "")
     if best_snippet:
         return f"{best_snippet} (Source: {results[0].get('url', 'Unknown')})"
         
     return f"No results found for: {query}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Backend: Google Custom Search API (optional)
-# ----------------------------------------------------------------------
 def _google_cse_search(query: str, max_results: int = 5) -> List[Dict]:
     requests = _import_requests()
     if not requests:
@@ -286,12 +264,10 @@ def _google_cse_search(query: str, max_results: int = 5) -> List[Dict]:
         print(f"[WebSearch] Google CSE failed: {e}")
         return []
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Comparison engine
-# ----------------------------------------------------------------------
 def _compare(items: List[str], aspect: str) -> str:
-    # Try Gemini first (most articulate)
+                                        
     query = (
         f"Compare the following items: {', '.join(items)}.\n"
         f"Focus on: {aspect}.\n"
@@ -312,7 +288,6 @@ def _compare(items: List[str], aspect: str) -> str:
             f"[WebSearch] Gemini compare failed: {e} — falling back to DDG + local synthesis"
         )
 
-    # Fallback: fetch DDG results per item and merge
     all_info = []
     for item in items:
         try:
@@ -326,19 +301,16 @@ def _compare(items: List[str], aspect: str) -> str:
             all_info.append(f"**{item}**: search failed.")
     if not all_info:
         return f"Could not retrieve comparison for {', '.join(items)}."
-    # Attempt to summarise using local Gemini without grounding? Just format.
+                                                                             
     lines = [f"**Comparison — {aspect.upper()}**\n"]
     lines.extend(all_info)
     return "\n".join(lines)
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Query type detection
-# ----------------------------------------------------------------------
 _COMPARE_KEYWORDS = ["compare", "vs", "versus", "difference", "differences"]
 _NEWS_KEYWORDS = ["news", "latest", "today", "breaking", "update"]
 _DEFINE_KEYWORDS = ["define", "definition", "what is", "meaning of", "who is"]
-
 
 def _detect_query_mode(query: str) -> str:
     q = query.lower()
@@ -350,7 +322,7 @@ def _detect_query_mode(query: str) -> str:
         return False
 
     if contains_word(_COMPARE_KEYWORDS, q):
-        # Extract items: split by "and", "vs", ","
+                                                  
         return "compare"
     if contains_word(_NEWS_KEYWORDS, q):
         return "news"
@@ -358,10 +330,8 @@ def _detect_query_mode(query: str) -> str:
         return "definition"
     return "search"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Main controller
-# ----------------------------------------------------------------------
 def web_search(
     parameters: dict,
     response=None,
@@ -386,32 +356,28 @@ def web_search(
     max_results = int(params.get("max_results", 5))
     backend = params.get("backend", "auto").lower().strip()
 
-    # Auto‑detect mode if not specified
     if not mode and query:
         mode = _detect_query_mode(query)
 
-    # If items provided and no explicit compare mode, force compare
     if items and not mode:
         mode = "compare"
 
     if not query and not items:
         return "Please provide a search query or items to compare."
 
-    # Logging
     if player:
         player.write_log(f"[Search] {query or ', '.join(items)}")
     print(f"[WebSearch] Query: {query!r} | Mode: {mode} | Backend: {backend}")
 
-    # Comparison mode
     if mode == "compare":
         if not items:
-            # Try to extract items from query (split by "vs", "and", ",")
+                                                                         
             items = re.split(
                 r"\s+(?:vs\.?|versus|and|,)\s+", query, flags=re.IGNORECASE
             )
             items = [i.strip() for i in items if i.strip()]
             if len(items) < 2:
-                # Fallback: treat whole query as comparison
+                                                           
                 items = [query]
         if len(items) < 2:
             return "Please provide at least two items to compare."
@@ -421,7 +387,6 @@ def web_search(
         except Exception as e:
             return f"Comparison failed: {e}"
 
-    # Standard search (or news/definition)
     cache_key = _cache_key("search", query, backend, max_results)
     cached = _cache_get(cache_key)
     if cached:
@@ -430,7 +395,6 @@ def web_search(
 
     result = None
 
-    # Try Gemini Grounding first (unless backend is explicitly set to something else)
     if backend in ("auto", "gemini"):
         try:
             print("[WebSearch] Trying Gemini Grounding...")
@@ -441,7 +405,6 @@ def web_search(
             if backend == "gemini":
                 return f"Gemini search failed: {e}"
 
-    # Fallback to DuckDuckGo
     if not result and backend in ("auto", "ddg"):
         try:
             print("[WebSearch] Trying DuckDuckGo...")
@@ -453,7 +416,6 @@ def web_search(
             if backend == "ddg":
                 return f"DuckDuckGo search failed: {e}"
 
-    # Fallback to Google CSE if configured
     if not result and backend in ("auto", "cse"):
         try:
             print("[WebSearch] Trying Google CSE...")
@@ -469,22 +431,17 @@ def web_search(
     if not result:
         return "Sorry, I couldn't retrieve any search results. Please try again later."
 
-    # Cache the successful result
     _cache_set(cache_key, result)
     return result
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Quick helper to clear cache (useful for testing)
-# ----------------------------------------------------------------------
 def clear_cache():
     with _CACHE_LOCK:
         _CACHE.clear()
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# CLI test
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
 

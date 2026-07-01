@@ -13,8 +13,7 @@ import subprocess
 import sys
 from typing import Callable
 
-# ── Package lists ─────────────────────────────────────────────────────────
-# Each entry: (import_name, pip_package_name)
+                                             
 
 _CORE: list[tuple[str, str]] = [
     ("psutil", "psutil"),
@@ -36,7 +35,6 @@ _CORE: list[tuple[str, str]] = [
     ("youtube_transcript_api", "youtube-transcript-api"),
 ]
 
-# Windows-only (pywinauto, pycaw, win10toast, comtypes)
 _WINDOWS: list[tuple[str, str]] = [
     ("comtypes", "comtypes"),
     ("pycaw", "pycaw"),
@@ -44,28 +42,23 @@ _WINDOWS: list[tuple[str, str]] = [
     ("pywinauto", "pywinauto"),
 ]
 
-# STT engine packages
 _STT: dict[str, list[tuple[str, str]]] = {
     "whisper": [("faster_whisper", "faster-whisper")],
     "vosk": [("vosk", "vosk")],
 }
 
-# TTS engine packages
 _TTS: dict[str, list[tuple[str, str]]] = {
     "edgetts": [("edge_tts", "edge-tts")],
-    # kokoro>=0.9 dropped AlbertModel/AutoModel from transformers — version pin is critical
+                                                                                           
     "kokoro": [("kokoro", "kokoro>=0.9"), ("soundfile", "soundfile")],
-    "elevenlabs": [],  # uses only requests, already in core
+    "elevenlabs": [],                                       
 }
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────
-
+                                                                            
 
 def _available(module: str) -> bool:
     """Return True if the module can be imported (no actual import)."""
     return importlib.util.find_spec(module) is not None
-
 
 def _pip(package: str, log: Callable | None = None) -> bool:
     if log:
@@ -88,9 +81,7 @@ def _pip(package: str, log: Callable | None = None) -> bool:
         log(f"ERR: {package} install failed — {stderr[:140]}")
     return ok
 
-
-# ── Public API ────────────────────────────────────────────────────────────
-
+                                                                            
 
 def install_for_config(config: dict, log: Callable | None = None) -> None:
     """
@@ -108,7 +99,6 @@ def install_for_config(config: dict, log: Callable | None = None) -> None:
     if platform.system() == "Windows":
         needed += _WINDOWS
 
-    # Deduplicate (preserve order, key = pip name)
     seen: set[str] = set()
     unique: list[tuple[str, str]] = []
     for mod, pkg in needed:
@@ -130,7 +120,6 @@ def install_for_config(config: dict, log: Callable | None = None) -> None:
     for _mod, pkg in missing:
         _pip(pkg, log)
 
-    # Playwright: install the package + download Chromium browser
     if not _available("playwright"):
         _pip("playwright", log)
         if log:

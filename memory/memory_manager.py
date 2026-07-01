@@ -4,19 +4,18 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
-
 def get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
+        import os
+        appdata = Path(os.environ.get("APPDATA", Path.home()))
+        return appdata / "INDRA"
     return Path(__file__).resolve().parent.parent
-
 
 BASE_DIR = get_base_dir()
 MEMORY_PATH = BASE_DIR / "memory" / "long_term.json"
 _lock = Lock()
 MAX_VALUE_LENGTH = 380
 MEMORY_MAX_CHARS = 2200
-
 
 def _empty_memory() -> dict:
     return {
@@ -27,7 +26,6 @@ def _empty_memory() -> dict:
         "wishes": {},
         "notes": {},
     }
-
 
 def load_memory() -> dict:
     if not MEMORY_PATH.exists():
@@ -46,7 +44,6 @@ def load_memory() -> dict:
             print(f"[Memory] ⚠️ Load error: {e}")
             return _empty_memory()
 
-
 def _all_entries(memory: dict) -> list[tuple]:
     entries = []
     for cat, items in memory.items():
@@ -56,7 +53,6 @@ def _all_entries(memory: dict) -> list[tuple]:
             if isinstance(entry, dict) and "value" in entry:
                 entries.append((cat, key, entry))
     return entries
-
 
 def _trim_to_limit(memory: dict) -> dict:
     if len(json.dumps(memory, ensure_ascii=False)) <= MEMORY_MAX_CHARS:
@@ -70,7 +66,6 @@ def _trim_to_limit(memory: dict) -> dict:
         print(f"[Memory] 🗑️  Trimmed {cat}/{key}")
     return memory
 
-
 def save_memory(memory: dict) -> None:
     if not isinstance(memory, dict):
         return
@@ -82,12 +77,10 @@ def save_memory(memory: dict) -> None:
             encoding="utf-8",
         )
 
-
 def _truncate_value(val: str) -> str:
     if isinstance(val, str) and len(val) > MAX_VALUE_LENGTH:
         return val[:MAX_VALUE_LENGTH].rstrip() + "…"
     return val
-
 
 def _recursive_update(target: dict, updates: dict) -> bool:
     changed = False
@@ -113,7 +106,6 @@ def _recursive_update(target: dict, updates: dict) -> bool:
                 changed = True
     return changed
 
-
 def update_memory(memory_update: dict) -> dict:
     if not isinstance(memory_update, dict) or not memory_update:
         return load_memory()
@@ -122,7 +114,6 @@ def update_memory(memory_update: dict) -> dict:
         save_memory(memory)
         print(f"[Memory] 💾 Saved: {list(memory_update.keys())}")
     return memory
-
 
 def format_memory_for_prompt(memory: dict | None) -> str:
     if not memory:
@@ -211,14 +202,12 @@ def format_memory_for_prompt(memory: dict | None) -> str:
 
     return result + "\n"
 
-
 def remember(key: str, value: str, category: str = "notes") -> str:
     valid = {"identity", "preferences", "projects", "relationships", "wishes", "notes"}
     if category not in valid:
         category = "notes"
     update_memory({category: {key: {"value": value}}})
     return f"Remembered: {category}/{key} = {value}"
-
 
 def forget(key: str, category: str = "notes") -> str:
     memory = load_memory()
@@ -229,6 +218,5 @@ def forget(key: str, category: str = "notes") -> str:
         save_memory(memory)
         return f"Forgotten: {category}/{key}"
     return f"Not found: {category}/{key}"
-
 
 forget_memory = forget

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>INDRA Unified Cinematic Atlas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    .layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      transition: opacity 1.5s ease-in-out, visibility 1.5s;
+    }
+    .visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      z-index: 2;
+    }
+    .hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #globeViz, #map2d {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    /* Hide Leaflet attribution for cleaner aesthetic */
+    .leaflet-control-attribution {
+      display: none !important;
+    }
+    .leaflet-control-zoom {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D Globe Layer -->
+  <div id="globeContainer" class="layer visible">
+    <div id="globeViz"></div>
+  </div>
+  
+  <!-- 2D Leaflet Map Layer -->
+  <div id="map2dContainer" class="layer hidden">
+    <div id="map2d"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="globe.gl.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    const globe = Globe()(document.getElementById('globeViz'));
+    globe.globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+         .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+         .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png');
+         
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.5;
+
+    // --- Initialize 2D Map ---
+    const mapBounds = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180));
+    
+    const map = L.map('map2d', {
+      center: [20, 0],
+      zoom: 3,
+      minZoom: 2,
+      maxZoom: 20,
+      maxBounds: mapBounds,
+      maxBoundsViscosity: 1.0, // Hard bounce on edges
+      zoomControl: false,
+      preferCanvas: true // Use HTML5 Canvas for zero DOM-node stuttering
+    });
+
+    // Google Maps Hybrid Layer (Razor-Sharp High-Definition Street Level)
+    L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      maxZoom: 20,
+      noWrap: true,
+      bounds: mapBounds,
+      keepBuffer: 4, // Sweet spot for memory
+      updateWhenIdle: true, // Only download tiles when panning stops or slows
+      updateWhenZooming: false, // Prevent downloading junk tiles while flying
+      crossOrigin: true,
+      attribution: 'Map data &copy; Google'
+    }).addTo(map);
+
+    // --- Resize Handler ---
+    window.addEventListener('resize', () => {
+      globe.width(window.innerWidth).height(window.innerHeight);
+      map.invalidateSize();
+    });
+    
+    // Initial resize trigger
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 100);
+
+    // --- INDRA Interface ---
+    const globeContainer = document.getElementById('globeContainer');
+    const map2dContainer = document.getElementById('map2dContainer');
+
+    // Initially hide the map DOM completely to save GPU
+    map2dContainer.style.display = 'none';
+
+    window.INDRA = {
+      showGlobe: function() {
+        if (globe.resumeAnimation) globe.resumeAnimation();
+        
+        // Bring globe back to DOM
+        globeContainer.style.display = 'block';
+        // Force reflow to ensure CSS transition applies
+        void globeContainer.offsetWidth;
+        
+        globeContainer.classList.remove('hidden');
+        globeContainer.classList.add('visible');
+        
+        map2dContainer.classList.remove('visible');
+        map2dContainer.classList.add('hidden');
+        
+        // Remove 2D map from GPU after fade completes
+        setTimeout(() => {
+            if (globeContainer.classList.contains('visible')) {
+                map2dContainer.style.display = 'none';
+            }
+        }, 1500);
+      },
+      
+      flyTo: function(target) {
+        if (!target) return;
+        
+        if (globe.pauseAnimation) globe.pauseAnimation();
+        
+        // Bring map back to DOM
+        map2dContainer.style.display = 'block';
+        void map2dContainer.offsetWidth;
+        
+        globeContainer.classList.remove('visible');
+        globeContainer.classList.add('hidden');
+        
+        map2dContainer.classList.remove('hidden');
+        map2dContainer.classList.add('visible');
+        
+        // Remove Globe from GPU after fade completes
+        setTimeout(() => {
+            if (map2dContainer.classList.contains('visible')) {
+                globeContainer.style.display = 'none';
+            }
+        }, 1500);
+        
+        const executeGeocode = async (query) => {
+            // Phase 1: Esri (Perfect for addresses and cities)
+            try {
+                const eRes = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(query)}&outFields=*&maxLocations=1`);
+                const eData = await eRes.json();
+                if (eData && eData.candidates && eData.candidates.length > 0) {
+                    const c = eData.candidates[0];
+                    if (c.score >= 85) return { lat: c.location.y, lon: c.location.x, ext: c.extent, name: query };
+                }
+            } catch (e) { console.warn("Esri P1 failed", e); }
+
+            // Phase 2: NLP Cleanse & Nominatim (Perfect for local obscure campus/buildings)
+            try {
+                const cleanQuery = query.replace(/\b(in|near|around|the|at)\b/gi, '').replace(/\s+/g, ' ').trim();
+                const nRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}&limit=1`);
+                const nData = await nRes.json();
+                if (nData && nData.length > 0) {
+                    const c = nData[0];
+                    const bb = c.boundingbox;
+                    const extent = bb ? { ymin: bb[0], ymax: bb[1], xmin: bb[2], xmax: bb[3] } : null;
+                    return { lat: parseFloat(c.lat), lon: parseFloat(c.lon), ext: extent, name: cleanQuery };
+                }
+            } catch (e) { console.warn("Nominatim failed", e); }
+            
+            // Phase 3: Photon Fallback
+            try {
+                const pRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`);
+                const pData = await pRes.json();
+                if (pData && pData.features && pData.features.length > 0) {
+                    const coords = pData.features[0].geometry.coordinates; // [lon, lat]
+                    const extent = pData.features[0].properties.extent; // [minLon, minLat, maxLon, maxLat]
+                    const extObj = extent ? { xmin: extent[0], ymin: extent[1], xmax: extent[2], ymax: extent[3] } : null;
+                    return { lat: coords[1], lon: coords[0], ext: extObj, name: query };
+                }
+            } catch (e) { console.warn("Photon failed", e); }
+
+            // Phase 4: Esri Forgiving Fallback
+            try {
+                const eRes = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(query)}&outFields=*&maxLocations=1`);
+                const eData = await eRes.json();
+                if (eData && eData.candidates && eData.candidates.length > 0) {
+                    const c = eData.candidates[0];
+                    return { lat: c.location.y, lon: c.location.x, ext: c.extent, name: query };
+                }
+            } catch (e) {}
+
+            return null;
+        };
+
+        setTimeout(() => map.invalidateSize(), 50);
+
+        executeGeocode(target).then(res => {
+            if (res) {
+              const targetLat = res.lat;
+              const targetLon = res.lon;
+              
+              setTimeout(() => {
+                  const ext = res.ext; 
+                  if (ext && ext.ymin !== undefined) {
+                      const latMin = parseFloat(ext.ymin);
+                      const latMax = parseFloat(ext.ymax);
+                      const lonMin = parseFloat(ext.xmin);
+                      const lonMax = parseFloat(ext.xmax);
+                      
+                      const bounds = [ [latMin, lonMin], [latMax, lonMax] ];
+                      const latDiff = Math.abs(latMax - latMin);
+                      const lonDiff = Math.abs(lonMax - lonMin);
+                      
+                      // For extremely small extents (e.g., street address), force deep zoom
+                      if (latDiff < 0.05 && lonDiff < 0.05) {
+                          map.flyTo([targetLat, targetLon], 17, { animate: true, duration: 1.5, easeLinearity: 0.25 });
+                      } else {
+                          map.flyToBounds(bounds, { animate: true, duration: 1.5, easeLinearity: 0.25 });
+                      }
+                  } else {
+                      // Fallback if no extent is provided
+                      map.flyTo([targetLat, targetLon], 16, { animate: true, duration: 1.5, easeLinearity: 0.25 });
+                  }
+                  
+                  // Rotate globe to match
+                  globe.pointOfView({ lat: targetLat, lng: targetLon, altitude: 1.5 }, 1500);
+              }, 100);
+            } else {
+                console.warn(`Super Geocoder could not locate: ${target}`);
+            }
+        });
+      }
+    };
+  </script>
+</body>
+</html>

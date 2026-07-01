@@ -11,11 +11,9 @@ def python_executor(parameters: dict, player=None) -> str:
     if not code:
         return "No code provided."
 
-    # Capture stdout and stderr
     f_stdout = io.StringIO()
     f_stderr = io.StringIO()
-    
-    # We use a shared dictionary for local and global variables
+
     exec_globals = {}
     
     try:

@@ -174,32 +174,24 @@ def refactor_file(path):
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # If it's an action file
     if "def _build_logger()" in content or "class StatsTracker:" in content or "class Config:" in content:
-        # We need to remove these definitions and import from core.utils
-        
-        # Regex to remove logger
+
+                                
         content = re.sub(r'def _build_logger\(\) -> logging\.Logger:.*?log = _build_logger\(\)', '', content, flags=re.DOTALL)
         content = re.sub(r'def _build_logger\(\).*?log = _build_logger\(\)', '', content, flags=re.DOTALL)
-        
-        # Regex to remove config
+
         content = re.sub(r'class Config:.*?def get\(self, key: str, default: Any = None\) -> Any:\s*return self._data\.get\(key, default\)', '', content, flags=re.DOTALL)
-        
-        # Regex to remove stats
+
         content = re.sub(r'@dataclass\s*class ActionRecord:.*?STATS = StatsTracker\(\)', '', content, flags=re.DOTALL)
         content = re.sub(r'class StatsTracker:.*?STATS = StatsTracker\(\)', '', content, flags=re.DOTALL)
 
-        # Regex to remove sync_ui
         content = re.sub(r'def synchronized_ui\(func: Callable\) -> Callable:.*?return wrapper', '', content, flags=re.DOTALL)
-        
-        # Regex to remove get gemini client
+
         content = re.sub(r'def _get_gemini_client\(\).*?return _gemini_client', '', content, flags=re.DOTALL)
-        
-        # Add imports
+
         import_stmt = "from core.utils import log, Config, STATS, synchronized_ui, get_gemini_client\n"
         content = import_stmt + content
-        
-        # Replace local usages
+
         content = content.replace("_get_gemini_client()", "get_gemini_client()")
         
         with open(path, "w", encoding="utf-8") as f:

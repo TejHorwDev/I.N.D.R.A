@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 import ast
 import base64
 import hashlib
@@ -14,13 +14,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
-# ==================== PATH & CONFIG ====================
+                                                         
 def get_base_dir():
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 BASE_DIR = get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
@@ -28,12 +26,11 @@ DESKTOP = Path.home() / "Desktop"
 MAX_BUILD_ATTEMPTS = 3
 GEMINI_MODEL = "gemini-2.5-flash"
 BACKUP_SUFFIX = ".INDRA_backup"
-MAX_BACKUPS = 5  # rolling backup slots
-API_RETRY_ATTEMPTS = 3  # transient API failure retries
-API_RETRY_DELAY = 1.5  # seconds between retries (exponential base)
+MAX_BACKUPS = 5                        
+API_RETRY_ATTEMPTS = 3                                 
+API_RETRY_DELAY = 1.5                                              
 
-# ==================== LANGUAGE REGISTRY ====================
-# Single source of truth for extension, interpreter, formatter, linter, test framework
+                                                                                      
 LANG_REGISTRY: Dict[str, Dict] = {
     "python": {
         "ext": ".py",
@@ -171,23 +168,19 @@ LANG_REGISTRY: Dict[str, Dict] = {
     },
 }
 
-
 def _lang_info(lang: str) -> Dict:
     """Return registry entry for a language, defaulting to python."""
     return LANG_REGISTRY.get((lang or "python").lower(), LANG_REGISTRY["python"])
 
-
-# ==================== API HELPERS ====================
+                                                       
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
-
 
 def _get_genai_client():
     from google import genai
 
     return genai.Client(api_key=_get_api_key())
-
 
 def _generate_content(prompt: str, model: str = GEMINI_MODEL) -> str:
     """Call Gemini with exponential-backoff retry on transient failures."""
@@ -203,7 +196,7 @@ def _generate_content(prompt: str, model: str = GEMINI_MODEL) -> str:
         except Exception as exc:
             last_exc = exc
             err_str = str(exc).lower()
-            # Don't retry on fatal errors (bad key, quota exhausted permanently, etc.)
+                                                                                      
             if any(
                 kw in err_str for kw in ["api_key", "permission", "quota", "invalid"]
             ):
@@ -215,7 +208,6 @@ def _generate_content(prompt: str, model: str = GEMINI_MODEL) -> str:
                 )
                 time.sleep(wait)
     raise RuntimeError(f"API failed after {API_RETRY_ATTEMPTS} attempts: {last_exc}")
-
 
 def _multimodal_generate(
     image_bytes: bytes, prompt: str, model: str = GEMINI_MODEL
@@ -244,7 +236,6 @@ def _multimodal_generate(
                 time.sleep(API_RETRY_DELAY * attempt)
     raise RuntimeError(f"Multimodal API failed: {last_exc}")
 
-
 def _clean_code(text: str) -> str:
     """
     Strip ALL markdown code fence variants robustly.
@@ -254,19 +245,18 @@ def _clean_code(text: str) -> str:
     if not text:
         return ""
     text = text.strip()
-    # Remove outer fence if present (greedy match of the largest fenced block)
+                                                                              
     fence_pattern = re.compile(r"```[a-zA-Z0-9_+-]*\n?(.*?)```", re.DOTALL)
     matches = fence_pattern.findall(text)
     if matches:
-        # Take the longest match (most likely the full code block)
+                                                                  
         text = max(matches, key=len)
-    # Clean any remaining fence artifacts
+                                         
     text = re.sub(r"^```[a-zA-Z0-9_+-]*\n?", "", text)
     text = re.sub(r"\n?```$", "", text)
     return text.strip()
 
-
-# ==================== FILE OPERATIONS ====================
+                                                           
 def _resolve_save_path(output_path: str, language: str) -> Path:
     info = _lang_info(language)
     ext = info["ext"]
@@ -274,7 +264,6 @@ def _resolve_save_path(output_path: str, language: str) -> Path:
         p = Path(output_path)
         return p if p.is_absolute() else DESKTOP / p
     return DESKTOP / f"INDRA_code{ext}"
-
 
 def _read_file(file_path: str) -> Tuple[str, str]:
     if not file_path:
@@ -292,7 +281,6 @@ def _read_file(file_path: str) -> Tuple[str, str]:
     except Exception as e:
         return "", f"Could not read file: {e}"
 
-
 def _rolling_backup(path: Path) -> None:
     """
     Keep up to MAX_BACKUPS rolling backups: .INDRA_backup.1 (newest) → .INDRA_backup.N (oldest).
@@ -306,7 +294,6 @@ def _rolling_backup(path: Path) -> None:
     first = Path(str(path) + f"{BACKUP_SUFFIX}.1")
     shutil.copy2(path, first)
 
-
 def _save_file(path: Path, content: str) -> str:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -317,7 +304,6 @@ def _save_file(path: Path, content: str) -> str:
     except Exception as e:
         return f"Could not save: {e}"
 
-
 def _preview(code: str, lines: int = 10) -> str:
     all_lines = code.splitlines()
     preview = "\n".join(all_lines[:lines])
@@ -326,13 +312,11 @@ def _preview(code: str, lines: int = 10) -> str:
     )
     return preview + suffix
 
-
 def _count_lines(text: str) -> int:
     return len(text.splitlines())
 
-
-# ==================== ERROR CLASSIFICATION ====================
-# Richer than a flat string match — returns (has_error, category)
+                                                                
+                                                                 
 _ERROR_PATTERNS = [
     (r"(?i)(syntax\s*error|indentation\s*error)", "syntax"),
     (r"(?i)(name\s*error|undefined\s*(variable|reference))", "name"),
@@ -345,7 +329,6 @@ _ERROR_PATTERNS = [
     (r"(?i)(error|failed|stderr)", "generic"),
 ]
 
-
 def _classify_error(output: str) -> Tuple[bool, str]:
     """Returns (has_error, category). Category helps tailor fix prompts."""
     for pattern, category in _ERROR_PATTERNS:
@@ -353,13 +336,11 @@ def _classify_error(output: str) -> Tuple[bool, str]:
             return True, category
     return False, "none"
 
-
 def _has_error(output: str) -> bool:
     has, _ = _classify_error(output)
     return has
 
-
-# ==================== DEPENDENCY / IMPORT DETECTION ====================
+                                                                         
 def _extract_imports_from_code(code: str, lang: str) -> List[str]:
     """
     Parse actual import statements from source code.
@@ -388,7 +369,7 @@ def _extract_imports_from_code(code: str, lang: str) -> List[str]:
                         if root not in stdlib:
                             packages.append(root)
         except SyntaxError:
-            # Fallback regex if code has syntax errors
+                                                      
             for m in re.finditer(r"^(?:import|from)\s+([\w]+)", code, re.MULTILINE):
                 packages.append(m.group(1))
     elif lang in ("javascript", "js", "typescript", "ts"):
@@ -396,8 +377,7 @@ def _extract_imports_from_code(code: str, lang: str) -> List[str]:
             pkg = m.group(1)
             if not pkg.startswith("."):
                 packages.append(pkg.split("/")[0])
-    return list(dict.fromkeys(packages))  # deduplicate preserving order
-
+    return list(dict.fromkeys(packages))                                
 
 def _detect_test_framework(code: str, lang: str) -> str:
     """Detect which test framework to use based on existing imports in the file."""
@@ -414,11 +394,10 @@ def _detect_test_framework(code: str, lang: str) -> str:
             return fw
     return default
 
-
-# ==================== INTENT DETECTION (scoring system) ====================
-# Each entry: (keywords, intent, score)
+                                                                             
+                                       
 _INTENT_RULES: List[Tuple[List[str], str, int]] = [
-    # Screen debug — highest specificity
+                                        
     (
         [
             "ekrandaki",
@@ -435,7 +414,7 @@ _INTENT_RULES: List[Tuple[List[str], str, int]] = [
         "screen_debug",
         10,
     ),
-    # Optimize
+              
     (
         [
             "optimize",
@@ -452,7 +431,7 @@ _INTENT_RULES: List[Tuple[List[str], str, int]] = [
         "optimize",
         8,
     ),
-    # Edit
+          
     (
         [
             "edit",
@@ -470,7 +449,7 @@ _INTENT_RULES: List[Tuple[List[str], str, int]] = [
         "edit",
         7,
     ),
-    # Explain
+             
     (
         [
             "explain",
@@ -485,40 +464,39 @@ _INTENT_RULES: List[Tuple[List[str], str, int]] = [
         "explain",
         7,
     ),
-    # Run
+         
     (["run", "execute", "launch", "start", "çalıştır", "test it"], "run", 7),
-    # Build (retry)
+                   
     (["build", "make it work", "try again", "attempt", "rebuild"], "build", 6),
-    # Review
+            
     (["review", "check", "audit", "look at"], "review", 6),
-    # Security
+              
     (
         ["security", "vulnerability", "secure", "hack", "penetration"],
         "security_scan",
         6,
     ),
-    # Test generation
+                     
     (["test", "unit test", "write tests", "generate tests"], "generate_tests", 6),
-    # Docs
+          
     (["document", "docstring", "comment", "annotate", "jsdoc"], "generate_docs", 6),
-    # Convert
+             
     (["convert", "translate", "port", "migrate"], "convert", 6),
-    # Format
+            
     (["format", "prettier", "black", "beautify"], "format", 5),
-    # Lint
+          
     (["lint", "style check", "flake8", "eslint"], "lint", 5),
-    # API
+         
     (["api", "rest api", "endpoint", "route", "fastapi", "express"], "api_generate", 5),
-    # Schema
+            
     (["schema", "database", "sql", "table", "migration"], "database_schema", 5),
-    # Project setup
+                   
     (["scaffold", "project setup", "new project", "initialize"], "project_setup", 5),
-    # Benchmark
+               
     (["benchmark", "performance test", "profile", "speed"], "benchmark", 5),
-    # Dependencies
+                  
     (["dependencies", "requirements", "packages", "deps"], "dependencies", 5),
 ]
-
 
 def _detect_intent(description: str, file_path: str, code: str) -> str:
     """
@@ -537,15 +515,14 @@ def _detect_intent(description: str, file_path: str, code: str) -> str:
             f"[Code] 🤖 Intent scores: {dict(sorted(scores.items(), key=lambda x: -x[1])[:5])}"
         )
         return best
-    # Fallback heuristics
+                         
     if file_path and Path(file_path).exists():
         return "edit"
     if code:
         return "explain"
     return "write"
 
-
-# ==================== SCREENSHOT ====================
+                                                      
 def _take_screenshot() -> Optional[Path]:
     try:
         import pyautogui
@@ -553,7 +530,7 @@ def _take_screenshot() -> Optional[Path]:
         screenshot_path = DESKTOP / f"INDRA_debug_{int(time.time())}.png"
         screenshot = pyautogui.screenshot()
         screenshot.save(str(screenshot_path))
-        # Validate the file is non-trivial
+                                          
         if screenshot_path.stat().st_size < 1024:
             screenshot_path.unlink(missing_ok=True)
             raise ValueError("Screenshot file is suspiciously small.")
@@ -566,8 +543,7 @@ def _take_screenshot() -> Optional[Path]:
         print(f"[Code] ⚠️  Screenshot failed: {e}")
         return None
 
-
-# ==================== FILE RUNNER ====================
+                                                       
 def _run_file(path: Path, args: list, timeout: int) -> str:
     info = _lang_info(path.suffix.lstrip("."))
     interp = info.get("interp")
@@ -600,8 +576,7 @@ def _run_file(path: Path, args: list, timeout: int) -> str:
     except Exception as e:
         return f"Execution error: {e}"
 
-
-# ==================== WRITE ====================
+                                                 
 def _write(
     description: str, language: str, output_path: str, player=None
 ) -> Tuple[str, Path]:
@@ -631,8 +606,7 @@ Code:"""
     _save_file(path, code)
     return code, path
 
-
-# ==================== FIX CODE ====================
+                                                    
 def _fix_code(
     code: str, error_output: str, description: str, error_category: str = "generic"
 ) -> str:
@@ -676,8 +650,7 @@ FIXED CODE:"""
         raise ValueError("Fix attempt returned empty code.")
     return result
 
-
-# ==================== BUILD ====================
+                                                 
 def _build(
     description, language, output_path, args, timeout, speak=None, player=None
 ) -> str:
@@ -737,8 +710,7 @@ def _build(
         speak(msg)
     return f"{msg}\n\nLast code saved to: {path}"
 
-
-# ==================== WRITE ACTION ====================
+                                                        
 def _write_action(description, language, output_path, player) -> str:
     if not description:
         return "Please describe what you want me to write, sir."
@@ -752,8 +724,7 @@ def _write_action(description, language, output_path, player) -> str:
     except Exception as e:
         return f"Could not generate code: {e}"
 
-
-# ==================== EDIT ACTION ====================
+                                                       
 def _edit_action(file_path, instruction, player) -> str:
     if not file_path:
         return "Please provide a file path to edit, sir."
@@ -797,8 +768,7 @@ Updated code:"""
     print(f"[Code] ✅ Edited: {file_path} ({orig_lines}→{new_lines} lines, {diff_str})")
     return f"File edited. {status}\nLines: {orig_lines} → {new_lines} ({diff_str})\n\nPreview:\n{_preview(edited)}"
 
-
-# ==================== EXPLAIN ACTION ====================
+                                                          
 def _explain_action(file_path, code, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -829,8 +799,7 @@ Code:
 Explanation:"""
     return _generate_content(prompt).strip()
 
-
-# ==================== RUN ACTION ====================
+                                                      
 def _run_action(file_path, args, timeout, player) -> str:
     if not file_path:
         return "Please provide a file path to run, sir."
@@ -844,8 +813,7 @@ def _run_action(file_path, args, timeout, player) -> str:
     elapsed = time.time() - start
     return f"[Ran in {elapsed:.2f}s]\n{result}"
 
-
-# ==================== OPTIMIZE ACTION ====================
+                                                           
 def _optimize_action(file_path, code, language, output_path, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -887,8 +855,7 @@ Optimized code:"""
         f"Preview:\n{_preview(optimized)}"
     )
 
-
-# ==================== SCREEN DEBUG ====================
+                                                        
 def _screen_debug_action(description, file_path, player, speak=None) -> str:
     if player:
         player.write_log("[Code] Capturing screen for analysis…")
@@ -930,20 +897,18 @@ Be specific. Be actionable."""
         analysis = _multimodal_generate(image_bytes, analysis_prompt)
         print("[Code] ✅ Screen analysis complete")
 
-        # Cleanup screenshot
         try:
             screenshot_path.unlink()
         except Exception:
             pass
 
-        # Auto-apply fix if a code block is found and a file path was provided
         if file_path and file_content:
             code_match = re.search(r"```[a-zA-Z0-9_+-]*\n(.*?)```", analysis, re.DOTALL)
             if code_match:
                 fixed_code = code_match.group(1).strip()
                 if (
                     len(fixed_code) > 50
-                ):  # sanity check — don't save trivially short snippets
+                ):                                                      
                     save_path = Path(file_path)
                     _save_file(save_path, fixed_code)
                     analysis += f"\n\n✅ Fixed code saved to: {file_path}"
@@ -957,8 +922,7 @@ Be specific. Be actionable."""
             pass
         return f"Screen analysis failed: {e}"
 
-
-# ==================== GENERATE TESTS ====================
+                                                          
 def _generate_tests(
     file_path: str, code: str, language: str, output_path: str, player
 ) -> str:
@@ -993,7 +957,7 @@ Test code:"""
     test_code = _clean_code(_generate_content(prompt))
     if not test_code:
         return "Test generation returned empty result."
-    # Determine save path
+                         
     if file_path:
         p = Path(file_path)
         save_path = p.with_name(f"test_{p.stem}{p.suffix}")
@@ -1003,8 +967,7 @@ Test code:"""
     status = _save_file(save_path, test_code)
     return f"Tests generated ({framework}). {status}\n\nPreview:\n{_preview(test_code, 20)}"
 
-
-# ==================== REVIEW CODE ====================
+                                                       
 def _review_code(file_path: str, code: str, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -1045,8 +1008,7 @@ Code:
 Review:"""
     return _generate_content(prompt).strip()
 
-
-# ==================== SECURITY SCAN ====================
+                                                         
 def _security_scan(file_path: str, code: str, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -1081,8 +1043,7 @@ Code:
 Security Analysis:"""
     return _generate_content(prompt).strip()
 
-
-# ==================== REFACTOR ====================
+                                                    
 def _refactor_code(
     file_path: str, code: str, pattern: str, language: str, player
 ) -> str:
@@ -1120,8 +1081,7 @@ Refactored code:"""
     new_lines = _count_lines(refactored)
     return f"Refactored ({pattern[:50]}…). {status}\nLines: {orig_lines} → {new_lines}\n\nPreview:\n{_preview(refactored)}"
 
-
-# ==================== CONVERT ====================
+                                                   
 def _convert_code(
     file_path: str, code: str, source_lang: str, target_lang: str, player
 ) -> str:
@@ -1134,7 +1094,7 @@ def _convert_code(
     if not target_lang:
         return "Please specify the target language (e.g., target_lang='typescript')."
     if not source_lang or source_lang == "guess":
-        # Try to detect from file extension
+                                           
         source_lang = Path(file_path).suffix.lstrip(".") if file_path else "unknown"
     if player:
         player.write_log(f"[Code] Converting {source_lang} → {target_lang}…")
@@ -1163,8 +1123,7 @@ RULES:
     status = _save_file(save_path, converted)
     return f"Converted {source_lang} → {target_lang}. {status}\n\nPreview:\n{_preview(converted)}"
 
-
-# ==================== GENERATE DOCS ====================
+                                                         
 def _generate_docs(file_path: str, code: str, language: str, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -1209,8 +1168,7 @@ Documented code:"""
     status = _save_file(save_path, doc_code)
     return f"Documentation added ({style}). {status}\n\nPreview:\n{_preview(doc_code)}"
 
-
-# ==================== LINT ====================
+                                                
 def _lint_code(file_path: str, player) -> str:
     if not file_path:
         return "Please provide a file path to lint."
@@ -1249,8 +1207,7 @@ def _lint_code(file_path: str, player) -> str:
     except Exception as e:
         return f"Linting failed: {e}"
 
-
-# ==================== FORMAT ====================
+                                                  
 def _format_code(file_path: str, player) -> str:
     if not file_path:
         return "Please provide a file path to format."
@@ -1283,8 +1240,7 @@ def _format_code(file_path: str, player) -> str:
     except Exception as e:
         return f"Formatting failed: {e}"
 
-
-# ==================== DEPENDENCIES ====================
+                                                        
 def _extract_dependencies(file_path: str, code: str, language: str, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -1296,10 +1252,8 @@ def _extract_dependencies(file_path: str, code: str, language: str, player) -> s
         player.write_log("[Code] Extracting dependencies…")
     lang = language or (Path(file_path).suffix.lstrip(".") if file_path else "python")
 
-    # First: static parse of actual imports (fast, accurate)
     detected = _extract_imports_from_code(code, lang)
 
-    # Then: ask model to add version info and fill in anything missed
     prompt = f"""You are a {lang} package expert.
 The following imports were detected: {', '.join(detected) if detected else 'none detected via static analysis'}.
 
@@ -1316,7 +1270,6 @@ Code:
 {code[:5000]}"""
     deps = _clean_code(_generate_content(prompt))
 
-    # Determine output path
     base = Path(file_path).parent if file_path else DESKTOP
     if lang in ("python", "py"):
         out_path = base / "requirements_INDRA.txt"
@@ -1329,12 +1282,11 @@ Code:
     detected_str = f"\nStatically detected: {', '.join(detected)}" if detected else ""
     return f"Dependencies extracted. {status}{detected_str}\n\n{deps}"
 
-
-# ==================== PROJECT SETUP ====================
+                                                         
 def _project_setup(language: str, project_name: str, player) -> str:
     if not project_name:
         project_name = "my_project"
-    # Sanitize name
+                   
     project_name = re.sub(r"[^\w-]", "_", project_name).strip("_")
     lang = (language or "python").lower()
     base = DESKTOP / project_name
@@ -1434,13 +1386,12 @@ def _project_setup(language: str, project_name: str, player) -> str:
         file_count = sum(1 for _ in base.rglob("*") if _.is_file())
         return f"✅ Project '{project_name}' created at {base} ({file_count} files, {lang} template)."
     except Exception as e:
-        # Cleanup partial creation
+                                  
         if base.exists():
             shutil.rmtree(base, ignore_errors=True)
         return f"Project setup failed: {e}"
 
-
-# ==================== GIT ACTIONS ====================
+                                                       
 def _git_diff(file_path: str, player) -> str:
     if not file_path:
         return "Please provide a file path."
@@ -1457,7 +1408,7 @@ def _git_diff(file_path: str, player) -> str:
         )
         diff = result.stdout.strip()
         if not diff:
-            # Try staged diff
+                             
             result = subprocess.run(
                 ["git", "diff", "--cached", "--", str(p.name)],
                 capture_output=True,
@@ -1472,17 +1423,16 @@ def _git_diff(file_path: str, player) -> str:
     except Exception as e:
         return f"git diff failed: {e}"
 
-
 def _git_commit(file_path: str, message: str, player) -> str:
     if not file_path:
         return "Please provide a file path."
     p = Path(file_path)
     if not p.exists():
         return f"File not found: {file_path}"
-    # Auto-generate commit message if not provided
+                                                  
     if not message:
         try:
-            # Use git diff to base the message on actual changes
+                                                                
             diff_result = subprocess.run(
                 ["git", "diff", "--cached", "--stat"],
                 capture_output=True,
@@ -1522,7 +1472,6 @@ Message:"""
     except Exception as e:
         return f"Commit failed: {e}"
 
-
 def _git_push(player) -> str:
     try:
         result = subprocess.run(
@@ -1537,8 +1486,7 @@ def _git_push(player) -> str:
     except Exception as e:
         return f"Push failed: {e}"
 
-
-# ==================== BENCHMARK ====================
+                                                     
 def _benchmark(file_path: str, player) -> str:
     if not file_path:
         return "Please provide a file path."
@@ -1549,7 +1497,7 @@ def _benchmark(file_path: str, player) -> str:
         player.write_log(f"[Code] Benchmarking {p.name}…")
 
     if p.suffix == ".py":
-        # Use cProfile for meaningful profiling, not subprocess timeit
+                                                                      
         import tempfile
 
         profile_script = f"""
@@ -1597,14 +1545,13 @@ print(s.getvalue())
         finally:
             Path(tmp_path).unlink(missing_ok=True)
     else:
-        # Generic: just time execution
+                                      
         start = time.perf_counter()
         result = _run_file(p, [], 30)
         elapsed = time.perf_counter() - start
         return f"📊 {p.name} completed in {elapsed:.4f}s\n\n{result}"
 
-
-# ==================== API GENERATE ====================
+                                                        
 def _api_generate(description: str, language: str, output_path: str, player) -> str:
     if not description:
         return "Please describe the API to generate."
@@ -1643,8 +1590,7 @@ Return ONLY the complete, runnable code. No explanation. No backticks."""
     status = _save_file(path, code)
     return f"API generated. {status}\n\nPreview:\n{_preview(code, 20)}"
 
-
-# ==================== DATABASE SCHEMA ====================
+                                                           
 def _database_schema(description: str, output_path: str, player) -> str:
     if not description:
         return "Please describe the database schema."
@@ -1675,8 +1621,7 @@ Return ONLY the SQL. No explanation. No backticks."""
     table_count = len(re.findall(r"CREATE\s+TABLE", sql, re.IGNORECASE))
     return f"Schema generated ({table_count} tables). {status}\n\nPreview:\n{_preview(sql, 25)}"
 
-
-# ==================== CODE SUMMARY ====================
+                                                        
 def _code_summary(file_path: str, code: str, player) -> str:
     if file_path and not code:
         code, err = _read_file(file_path)
@@ -1700,23 +1645,22 @@ Code: {code[:5000]}
 Summary:"""
     return _generate_content(prompt).strip()
 
-
-# ==================== UNDO ====================
+                                                
 def _undo_edit(file_path: str, player) -> str:
     if not file_path:
         return "No file path provided."
     p = Path(file_path)
-    # Find the most recent backup
+                                 
     latest_backup = Path(str(p) + f"{BACKUP_SUFFIX}.1")
     if not latest_backup.exists():
-        # Fallback to old single-slot backup
+                                            
         old_backup = Path(str(p) + BACKUP_SUFFIX)
         if old_backup.exists():
             latest_backup = old_backup
         else:
             return f"No backup available for {p.name}."
     try:
-        # Shift backups: current → .1, old .1 → .2, etc. (preserve history)
+                                                                           
         if p.exists():
             _rolling_backup(p)
         shutil.copy2(latest_backup, p)
@@ -1725,8 +1669,7 @@ def _undo_edit(file_path: str, player) -> str:
     except Exception as e:
         return f"Undo failed: {e}"
 
-
-# ==================== BATCH ====================
+                                                 
 def _batch(actions: List[Dict], player, speak, session_memory) -> str:
     """
     Execute multiple actions in sequence with per-action error isolation.
@@ -1743,7 +1686,7 @@ def _batch(actions: List[Dict], player, speak, session_memory) -> str:
         if player:
             player.write_log(f"[Code] Batch {idx}/{total}: {action_name}…")
         try:
-            params = dict(act)  # copy to avoid mutation
+            params = dict(act)                          
             res = code_helper(
                 params, player=player, speak=speak, session_memory=session_memory
             )
@@ -1755,8 +1698,7 @@ def _batch(actions: List[Dict], player, speak, session_memory) -> str:
     header = f"Batch complete: {success}/{total} succeeded, {fail} failed.\n{'─'*50}\n"
     return header + "\n\n".join(results)
 
-
-# ==================== SESSION MEMORY ====================
+                                                          
 def _update_session_memory(
     session_memory: Optional[Dict], key: str, value: Any
 ) -> None:
@@ -1769,7 +1711,6 @@ def _update_session_memory(
         {"key": key, "value": value, "timestamp": time.time()}
     )
     session_memory[key] = value
-
 
 def _get_session_context(session_memory: Optional[Dict]) -> str:
     """Build a context string from session memory for inclusion in prompts."""
@@ -1786,8 +1727,7 @@ def _get_session_context(session_memory: Optional[Dict]) -> str:
         )
     return "\n".join(ctx_parts) if ctx_parts else ""
 
-
-# ==================== MAIN DISPATCH ====================
+                                                         
 def code_helper(
     parameters: dict, response=None, player=None, session_memory=None, speak=None
 ) -> str:
@@ -1802,18 +1742,15 @@ def code_helper(
     timeout = int(p.get("timeout", 30))
     instruction = p.get("instruction", "").strip()
 
-    # Update session memory with context
     if file_path:
         _update_session_memory(session_memory, "last_file", file_path)
     if language:
         _update_session_memory(session_memory, "last_language", language)
 
-    # Intent auto-detection
     if action == "auto":
         action = _detect_intent(description, file_path, code)
         print(f"[Code] 🤖 Auto-detected intent: '{action}'")
 
-    # ==================== DISPATCH ====================
     if action == "write":
         return _write_action(description, language, output_path, player)
 

@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 from __future__ import annotations
 
 import asyncio
@@ -17,12 +17,10 @@ from playwright.async_api import BrowserContext, Page, Playwright
 from playwright.async_api import TimeoutError as PlaywrightTimeout
 from playwright.async_api import async_playwright
 
-_OS = platform.system()  # "Windows" | "Darwin" | "Linux"
+_OS = platform.system()                                  
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  URL helpers
-# ----------------------------------------------------------------------
 def _normalize_url(url: str) -> str:
     url = url.strip()
     if not url:
@@ -32,7 +30,6 @@ def _normalize_url(url: str) -> str:
     if "." not in url:
         url = url + ".com"
     return "https://" + url
-
 
 def _user_agent() -> str:
     if _OS == "Windows":
@@ -53,10 +50,8 @@ def _user_agent() -> str:
         "Chrome/124.0.0.0 Safari/537.36"
     )
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Profile / executable discovery
-# ----------------------------------------------------------------------
 def _real_profile_dir(browser: str) -> str:
     home = Path.home()
     local = os.environ.get("LOCALAPPDATA", "")
@@ -115,7 +110,6 @@ def _real_profile_dir(browser: str) -> str:
     print(f"[Browser] ⚠️  Real profile not found for {browser}, using: {fallback}")
     return str(fallback)
 
-
 def _firefox_profile_dir() -> Optional[str]:
     home = Path.home()
 
@@ -154,7 +148,6 @@ def _firefox_profile_dir() -> Optional[str]:
         print(f"[Browser] Firefox real profile: {default_path}")
         return default_path
     return None
-
 
 def _find_opera_windows() -> Optional[str]:
     local = os.environ.get("LOCALAPPDATA", "")
@@ -198,7 +191,6 @@ def _find_opera_windows() -> Optional[str]:
 
     return shutil.which("opera") or None
 
-
 def _find_exe_windows(prog_name: str) -> Optional[str]:
     try:
         import winreg
@@ -221,7 +213,6 @@ def _find_exe_windows(prog_name: str) -> Optional[str]:
     except Exception:
         pass
     return None
-
 
 _BROWSER_SPECS: dict[str, dict] = {
     "Windows": {
@@ -310,7 +301,6 @@ _ALIASES: dict[str, str] = {
     "opera_gx": "operagx",
 }
 
-
 def _resolve_browser(name: str) -> dict | None:
     name = _ALIASES.get(name.lower().strip(), name.lower().strip())
     os_map = _BROWSER_SPECS.get(_OS, {})
@@ -356,7 +346,6 @@ def _resolve_browser(name: str) -> dict | None:
         exe = _find_exe_windows(name)
 
     return {"engine": engine, "exe": exe, "channel": channel}
-
 
 def _detect_default_browser() -> str:
     try:
@@ -410,10 +399,8 @@ def _detect_default_browser() -> str:
         pass
     return "chrome"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Browser session (one per browser name)
-# ----------------------------------------------------------------------
 class _BrowserSession:
     """
     Full session for one browser instance.
@@ -432,11 +419,10 @@ class _BrowserSession:
         self._context: Optional[BrowserContext] = None
         self._pages: List[Page] = []
         self._current_page_index: int = 0
-        self._downloads: List[str] = []  # paths of saved downloads
-        self._headless: bool = False  # can be changed via action
+        self._downloads: List[str] = []                            
+        self._headless: bool = False                             
         self._download_dir: str = str(Path.home() / "Downloads")
 
-    # ---------- lifecycle ----------
     def start(self):
         if self._thread and self._thread.is_alive():
             return
@@ -495,7 +481,6 @@ class _BrowserSession:
         self._pages.clear()
         self._current_page_index = 0
 
-    # ---------- launch ----------
     async def _launch(self):
         if self._context is not None:
             return
@@ -508,7 +493,6 @@ class _BrowserSession:
         channel = self._spec.get("channel")
         engine_obj = getattr(self._pw, engine_name)
 
-        # ---------- Firefox ----------
         if engine_name == "firefox":
             profile = _firefox_profile_dir() or str(
                 Path.home() / ".INDRA_profiles" / "firefox"
@@ -541,7 +525,6 @@ class _BrowserSession:
             print(f"[Browser] ✅ Firefox launched")
             return
 
-        # ---------- WebKit (Safari) ----------
         if engine_name == "webkit":
             safari_profile = str(Path.home() / ".INDRA_profiles" / "safari")
             Path(safari_profile).mkdir(parents=True, exist_ok=True)
@@ -560,7 +543,6 @@ class _BrowserSession:
             print(f"[Browser] ✅ Safari launched")
             return
 
-        # ---------- Chromium based ----------
         profile = _real_profile_dir(self.browser_name)
 
         kwargs = {
@@ -608,12 +590,12 @@ class _BrowserSession:
     async def _setup_context_listeners(self):
         """Attach download listener and track new pages."""
         self._context.on("page", self._on_new_page)
-        # Downloads
+                   
         self._context.on("download", self._on_download)
 
     async def _on_new_page(self, page: Page):
         self._pages.append(page)
-        # auto-focus the new page
+                                 
         self._current_page_index = len(self._pages) - 1
 
     async def _on_download(self, download):
@@ -640,12 +622,12 @@ class _BrowserSession:
     async def _get_page(self) -> Page:
         await self._launch()
         if self._current_page is None or self._current_page.is_closed():
-            # find first alive page
+                                   
             for i, p in enumerate(self._pages):
                 if not p.is_closed():
                     self._current_page_index = i
                     return p
-            # create a new page if none alive
+                                             
             if self._context:
                 new_page = await self._context.new_page()
                 self._pages.append(new_page)
@@ -653,7 +635,6 @@ class _BrowserSession:
                 return new_page
         return self._current_page
 
-    # ---------- Core actions ----------
     async def go_to(self, url: str) -> str:
         url = _normalize_url(url)
         page = await self._get_page()
@@ -1004,7 +985,6 @@ class _BrowserSession:
         except Exception as e:
             return f"Focus error: {e}"
 
-    # ---------- Tab management ----------
     async def new_tab(self, url: str = "") -> str:
         await self._launch()
         new_page = await self._context.new_page()
@@ -1019,12 +999,12 @@ class _BrowserSession:
         if page and not page.is_closed():
             idx = self._pages.index(page)
             await page.close()
-            # remove from list
+                              
             self._pages.pop(idx)
             if not self._pages:
                 self._current_page_index = 0
                 return "Tab closed. No tabs left."
-            # adjust index
+                          
             if self._current_page_index >= len(self._pages):
                 self._current_page_index = len(self._pages) - 1
             return "Tab closed."
@@ -1048,7 +1028,6 @@ class _BrowserSession:
             lines.append(f"[{i}]{marker} {title} ({p.url})")
         return "Tabs:\n" + "\n".join(lines)
 
-    # ---------- Utilities ----------
     async def back(self) -> str:
         page = await self._get_page()
         try:
@@ -1086,10 +1065,8 @@ class _BrowserSession:
         await self._async_close()
         return f"{self.browser_name} closed."
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Session registry (keeps one session per browser name)
-# ----------------------------------------------------------------------
 class _SessionRegistry:
     def __init__(self):
         self._sessions: Dict[str, _BrowserSession] = {}
@@ -1156,35 +1133,30 @@ class _SessionRegistry:
                 lines.append(f"  • {name}{marker}")
             return "Open browsers:\n" + "\n".join(lines)
 
-
 _registry = _SessionRegistry()
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Public API – called by the AI assistant
-# ----------------------------------------------------------------------
 def browser_control(
     parameters: Optional[Dict[str, Any]] = None,
-    response=None,  # kept for compatibility
+    response=None,                          
     player=None,
-    session_memory=None,  # dict – used to persist active browser & state
+    session_memory=None,                                                 
 ) -> str:
     params = parameters or {}
     action = params.get("action", "").lower().strip()
     browser = params.get("browser", "").lower().strip() or None
 
-    # ---- use session_memory for defaults ----
     if session_memory is not None and isinstance(session_memory, dict):
         if not browser:
             browser = session_memory.get("active_browser")
-        # allow overrides from memory
+                                     
         if not action and "last_action" in session_memory:
-            # not needed, but could reuse
+                                         
             pass
 
     result = "Unknown action."
 
-    # ---- global actions (no session needed) ----
     if action == "switch":
         target = browser or params.get("target", "").lower().strip()
         result = _registry.switch(target) if target else "Please specify a browser."
@@ -1203,7 +1175,6 @@ def browser_control(
         _log(player, result)
         return result
 
-    # ---- per‑browser actions ----
     try:
         sess = _registry.get(browser)
     except Exception as e:
@@ -1212,7 +1183,7 @@ def browser_control(
         return result
 
     try:
-        # --- navigation ---
+                            
         if action == "go_to":
             result = sess.run(sess.go_to(params.get("url", "")))
         elif action == "search":
@@ -1226,7 +1197,6 @@ def browser_control(
         elif action == "reload":
             result = sess.run(sess.reload())
 
-        # --- interaction ---
         elif action == "click":
             result = sess.run(sess.click(params.get("selector"), params.get("text")))
         elif action == "type":
@@ -1272,7 +1242,6 @@ def browser_control(
                 sess.upload_file(params.get("selector"), params.get("file_path", ""))
             )
 
-        # --- JS / content ---
         elif action == "execute_js":
             result = sess.run(sess.execute_js(params.get("script", "")))
         elif action == "get_text":
@@ -1284,7 +1253,6 @@ def browser_control(
         elif action == "get_title":
             result = sess.run(sess.get_title())
 
-        # --- waits ---
         elif action == "wait_for_selector":
             result = sess.run(
                 sess.wait_for_selector(
@@ -1296,13 +1264,11 @@ def browser_control(
                 sess.wait_for_navigation(int(params.get("timeout", 30_000)))
             )
 
-        # --- dialogs ---
         elif action == "handle_dialog":
             accept = params.get("accept", True)
             prompt_text = params.get("prompt_text", "")
             result = sess.run(sess.handle_dialog(accept, prompt_text))
 
-        # --- viewport / media ---
         elif action == "set_viewport":
             w = int(params.get("width", 1280))
             h = int(params.get("height", 720))
@@ -1318,13 +1284,11 @@ def browser_control(
         elif action == "grant_permissions":
             result = sess.run(sess.grant_permissions(params.get("permissions", [])))
 
-        # --- cookies ---
         elif action == "cookies_get":
             result = sess.run(sess.cookies_get(params.get("urls")))
         elif action == "cookies_set":
             result = sess.run(sess.cookies_set(params.get("cookies", [])))
 
-        # --- tabs ---
         elif action == "new_tab":
             result = sess.run(sess.new_tab(params.get("url", "")))
         elif action == "close_tab":
@@ -1334,7 +1298,6 @@ def browser_control(
         elif action == "list_tabs":
             result = sess.run(sess.list_tabs())
 
-        # --- screenshots / PDF ---
         elif action == "screenshot":
             result = sess.run(sess.screenshot(params.get("path")))
         elif action == "screenshot_fullpage":
@@ -1342,7 +1305,6 @@ def browser_control(
         elif action == "pdf":
             result = sess.run(sess.pdf(params.get("path")))
 
-        # --- downloads ---
         elif action == "downloads_list":
             result = (
                 "Downloads:\n" + "\n".join(sess._downloads)
@@ -1353,7 +1315,6 @@ def browser_control(
             sess._downloads.clear()
             result = "Download history cleared."
 
-        # --- advanced ---
         elif action == "click_and_navigate":
             result = sess.run(
                 sess.click_and_navigate(
@@ -1365,7 +1326,6 @@ def browser_control(
                 sess.drag_and_drop(params.get("source", ""), params.get("target", ""))
             )
 
-        # --- session management ---
         elif action == "close":
             target = browser or _registry._active_browser
             result = _registry.close_one(target) if target else "No browser specified."
@@ -1378,11 +1338,9 @@ def browser_control(
     except Exception as e:
         result = f"Browser error ({action}): {e}"
 
-    # store context for the AI
     _store_state(session_memory, action, browser, result, sess)
     _log(player, result)
     return result
-
 
 def _store_state(memory, action, browser=None, result=None, sess=None):
     """Persist useful info in session_memory for the assistant."""
@@ -1397,10 +1355,9 @@ def _store_state(memory, action, browser=None, result=None, sess=None):
             page = sess._current_page
             if page and not page.is_closed():
                 memory["current_url"] = page.url
-                # title might be fetched later if needed
+                                                        
         except Exception:
             pass
-
 
 def _log(player, text: str):
     short = str(text)[:80]

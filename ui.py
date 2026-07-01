@@ -8,14 +8,18 @@ import random
 import subprocess
 import sys
 import threading
+import uuid
+import requests
 import time
+import winreg
+import hashlib
 from pathlib import Path
 
 import mss
 import cv2
 import numpy as np
 import psutil
-from PyQt6.QtCore import (QPropertyAnimation, QEasingCurve, QMimeData, QMetaObject, Q_ARG, QObject, QPointF, QPoint, QRectF,
+from PyQt6.QtCore import (QPropertyAnimation, QEasingCurve, QMimeData, QMetaObject, Q_ARG, QObject, QPointF, QPoint, QRectF, QRect,
                           QSize, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot, QParallelAnimationGroup, QThread)
 from PyQt6.QtGui import (QBrush, QColor, QDragEnterEvent, QDropEvent, QFont,
                          QFontDatabase, QKeySequence, QLinearGradient,
@@ -25,9 +29,9 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout,
                              QLabel, QLineEdit, QMainWindow, QProgressBar,
                              QPushButton, QScrollArea, QSizePolicy, QTextEdit,
                              QVBoxLayout, QWidget, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
-                             QSystemTrayIcon, QMenu)
+                             QSystemTrayIcon, QMenu, QTextBrowser)
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 
 def _base_dir() -> Path:
     """Read-only bundled assets directory."""
@@ -1028,171 +1032,364 @@ class _DropCanvas(QWidget):
         else:
             z.mousePressEvent(e)
 
+def get_hwid() -> str:
+    raw = f"{platform.node()}-{platform.machine()}-{uuid.getnode()}"
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest().upper()[:8]
+
+def validate_license_key(key: str) -> bool:
+    if not key: return False
+    
+    # Load config
+    try:
+        with open("firebase_config.json", "r") as f:
+            config = json.load(f)
+            db_url = config.get("FIREBASE_DATABASE_URL", "").rstrip("/")
+            secret = config.get("FIREBASE_SECRET", "")
+            if not db_url or "YOUR-PROJECT-ID" in db_url:
+                return False
+    except Exception:
+        return False
+        
+    url = f"{db_url}/licenses/{key}.json"
+    if secret:
+        url += f"?auth={secret}"
+        
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code != 200 or not response.json():
+            return False
+            
+        data = response.json()
+        if data.get("status") != "active":
+            return False
+            
+        hwid = get_hwid()
+        saved_hwid = data.get("hwid", "")
+        
+        if not saved_hwid:
+            requests.patch(url, json={"hwid": hwid}, timeout=5)
+            return True
+            
+        return saved_hwid == hwid
+        
+    except Exception as e:
+        print(f"[Licensing] Error connecting to Firebase: {e}")
+        return False
+
 class SetupOverlay(QFrame):
     done = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(f"""
-            SetupOverlay {{
-                background: rgba(0, 6, 10, 245);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
-            }}
+        self.setObjectName("setupOverlay")
+        self.setStyleSheet("""
+            #setupOverlay {
+                background: #030305;
+            }
+        """)
+        
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("setupDialog")
+        self.dialog.setFixedWidth(460)
+        self.dialog.setMinimumHeight(540)
+        self.dialog.setStyleSheet("""
+            QFrame#setupDialog {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(28, 28, 35, 255), stop:1 rgba(15, 15, 18, 255));
+                border: 1px solid rgba(255, 255, 255, 15);
+                border-top: 1px solid rgba(255, 255, 255, 30);
+                border-radius: 24px;
+            }
         """)
 
-        detected = {"darwin": "mac", "windows": "windows"}.get(_OS.lower(), "linux")
-        self._sel_os = detected
+        glow = QGraphicsDropShadowEffect(self)
+        glow.setBlurRadius(60)
+        glow.setColor(QColor(168, 85, 247, 40))
+        glow.setOffset(0, 0)
+        self.dialog.setGraphicsEffect(glow)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 22, 30, 22)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(self.dialog)
+        layout.setContentsMargins(40, 44, 40, 44)
+        layout.setSpacing(16)
 
-        def _lbl(
-            txt,
-            font_size=9,
-            bold=False,
-            color=C.PRI,
-            align=Qt.AlignmentFlag.AlignCenter,
-        ):
+        logo_lbl = QLabel()
+        logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_lbl.setStyleSheet("background: transparent; border: none;")
+        logo_path = BASE_DIR / "logo" / "logo.png"
+        pix = QPixmap(str(logo_path))
+        if not pix.isNull():
+            pix = pix.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            logo_lbl.setPixmap(pix)
+        else:
+            logo_lbl.setText("◈")
+            logo_lbl.setStyleSheet("color: #a855f7; font-size: 42px; background: transparent; border: none;")
+        
+        logo_lay = QHBoxLayout()
+        logo_lay.addWidget(logo_lbl)
+        layout.addLayout(logo_lay)
+        layout.addSpacing(10)
+
+        def _lbl(txt, font_size=11, bold=False, color="#ffffff", align=Qt.AlignmentFlag.AlignCenter):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(
-                QFont(
-                    "Courier New",
-                    font_size,
-                    QFont.Weight.Bold if bold else QFont.Weight.Normal,
-                )
-            )
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            w.setFont(QFont("Inter", font_size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setStyleSheet(f"color: {color}; background: transparent; border: none;")
             return w
 
-        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 13, True))
-        layout.addWidget(
-            _lbl("Configure I.N.D.R.A. before first boot.", 9, color=C.PRI_DIM)
-        )
-        layout.addSpacing(6)
+        layout.addWidget(_lbl("System Initialization", 20, True, "#f8fafc"))
+        layout.addWidget(_lbl("Authenticate to boot I.N.D.R.A.", 11, False, "#94a3b8"))
+        layout.addSpacing(20)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};")
-        layout.addWidget(sep)
-        layout.addSpacing(4)
+        layout.addWidget(_lbl("API KEY", 9, True, "#94a3b8", Qt.AlignmentFlag.AlignLeft))
 
-        layout.addWidget(
-            _lbl(
-                "GEMINI API KEY", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft
-            )
-        )
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._key_input.setPlaceholderText("AIza…")
-        self._key_input.setFont(QFont("Courier New", 10))
-        self._key_input.setFixedHeight(32)
-        self._key_input.setStyleSheet(f"""
-            QLineEdit {{
-                background: #000d12; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
-            }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+        self._key_input.setPlaceholderText("Enter Gemini Token")
+        self._key_input.setFont(QFont("JetBrains Mono", 11))
+        self._key_input.setFixedHeight(50)
+        self._key_input.setStyleSheet("""
+            QLineEdit {
+                background: rgba(0, 0, 0, 100);
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 10);
+                border-bottom: 1px solid rgba(255, 255, 255, 25);
+                border-radius: 12px;
+                padding: 4px 20px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #a855f7;
+                background: rgba(168, 85, 247, 20);
+            }
         """)
         layout.addWidget(self._key_input)
-        layout.addSpacing(12)
+        
+        hint_lay1 = QHBoxLayout()
+        hint_lay1.setContentsMargins(4, 0, 4, 0)
+        get_key_lbl = QLabel('<a href="https://aistudio.google.com/app/apikey" style="color: #a855f7; text-decoration: none; font-weight: bold;">Get a key &rarr;</a>')
+        get_key_lbl.setFont(QFont("Inter", 9))
+        get_key_lbl.setStyleSheet("background: transparent; border: none;")
+        get_key_lbl.setOpenExternalLinks(True)
+        get_key_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hint_lay1.addStretch()
+        hint_lay1.addWidget(get_key_lbl)
+        layout.addLayout(hint_lay1)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {C.BORDER};")
-        layout.addWidget(sep2)
-        layout.addSpacing(4)
-
-        layout.addWidget(
-            _lbl(
-                "OPERATING SYSTEM",
-                8,
-                color=C.TEXT_DIM,
-                align=Qt.AlignmentFlag.AlignLeft,
-            )
-        )
-        det_name = {"windows": "Windows", "mac": "macOS", "linux": "Linux"}[detected]
-        layout.addWidget(
-            _lbl(
-                f"Auto-detected: {det_name}",
-                8,
-                color=C.ACC2,
-                align=Qt.AlignmentFlag.AlignLeft,
-            )
-        )
-
-        os_row = QHBoxLayout()
-        os_row.setSpacing(6)
-        self._os_btns: dict[str, QPushButton] = {}
-        for key, label in [
-            ("windows", "⊞  Windows"),
-            ("mac", "  macOS"),
-            ("linux", "🐧  Linux"),
-        ]:
-            btn = QPushButton(label)
-            btn.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
-            btn.setFixedHeight(32)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda _, k=key: self._sel(k))
-            os_row.addWidget(btn)
-            self._os_btns[key] = btn
-        layout.addLayout(os_row)
-        self._sel(detected)
-        layout.addSpacing(12)
-
-        init_btn = QPushButton("▸  INITIALISE SYSTEMS")
-        init_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
-        init_btn.setFixedHeight(36)
-        init_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        init_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
-            }}
-            QPushButton:hover {{
-                background: {C.PRI_GHO}; border: 1px solid {C.PRI};
-            }}
+        layout.addSpacing(16)
+        
+        layout.addWidget(_lbl("LICENSE KEY", 9, True, "#94a3b8", Qt.AlignmentFlag.AlignLeft))
+        
+        self._license_input = QLineEdit()
+        self._license_input.setPlaceholderText("Enter INDRA License Key (XXXX-XXXX-XXXX-XXXX)")
+        self._license_input.setFont(QFont("JetBrains Mono", 11))
+        self._license_input.setFixedHeight(50)
+        self._license_input.setStyleSheet("""
+            QLineEdit {
+                background: rgba(0, 0, 0, 100);
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 10);
+                border-bottom: 1px solid rgba(255, 255, 255, 25);
+                border-radius: 12px;
+                padding: 4px 20px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #a855f7;
+                background: rgba(168, 85, 247, 20);
+            }
         """)
-        init_btn.clicked.connect(self._submit)
-        layout.addWidget(init_btn)
+        layout.addWidget(self._license_input)
+        
+        hint_lay2 = QHBoxLayout()
+        hint_lay2.setContentsMargins(4, 0, 4, 0)
+        hint_lay2.addWidget(_lbl("Stored locally in secure vault.", 9, False, "#64748b", Qt.AlignmentFlag.AlignLeft))
+        layout.addLayout(hint_lay2)
+        
+        layout.addSpacing(30)
 
-    def _sel(self, key: str):
-        self._sel_os = key
-        pal = {
-            "windows": (C.PRI, "#001a22"),
-            "mac": (C.ACC2, "#1a1400"),
-            "linux": (C.GREEN, "#001a0d"),
-        }
-        for k, btn in self._os_btns.items():
-            if k == key:
-                fg, bg = pal[k]
-                btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background: {fg}; color: {bg};
-                        border: none; border-radius: 3px; font-weight: bold;
-                    }}
-                """)
-            else:
-                btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background: #000d12; color: {C.TEXT_DIM};
-                        border: 1px solid {C.BORDER}; border-radius: 3px;
-                    }}
-                    QPushButton:hover {{ color: {C.TEXT}; border: 1px solid {C.BORDER_B}; }}
-                """)
+        init_btn = QPushButton("Initialize System")
+        init_btn.setFont(QFont("Inter", 13, QFont.Weight.Bold))
+        init_btn.setFixedHeight(52)
+        init_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        init_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #a855f7, stop:1 #7e22ce);
+                color: #ffffff;
+                border: none;
+                border-radius: 14px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #c084fc, stop:1 #9333ea);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #9333ea, stop:1 #6b21a8);
+            }
+        """)
+        
+        btn_glow = QGraphicsDropShadowEffect(init_btn)
+        btn_glow.setBlurRadius(30)
+        btn_glow.setColor(QColor(168, 85, 247, 100))
+        btn_glow.setOffset(0, 4)
+        init_btn.setGraphicsEffect(btn_glow)
+        
+        layout.addWidget(init_btn)
+        init_btn.clicked.connect(self._submit)
+        
+        self._key_input.returnPressed.connect(self._submit)
+        self._license_input.returnPressed.connect(self._submit)
 
     def _submit(self):
         key = self._key_input.text().strip()
+        license_key = self._license_input.text().strip()
+        
+        valid = True
         if not key:
             self._key_input.setStyleSheet(
-                self._key_input.styleSheet()
-                + f" QLineEdit {{ border: 1px solid {C.RED}; }}"
+                self._key_input.styleSheet() + " QLineEdit { border: 1px solid #ff453a; }"
             )
+            valid = False
+            
+        if not validate_license_key(license_key):
+            self._license_input.setStyleSheet(
+                self._license_input.styleSheet() + " QLineEdit { border: 1px solid #ff453a; }"
+            )
+            valid = False
+            
+        if not valid:
             return
-        self.done.emit(key, self._sel_os)
+            
+        self.done.emit(key, license_key)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if hasattr(self, 'dialog'):
+            self.dialog.move(
+                (self.width() - self.dialog.width()) // 2,
+                (self.height() - self.dialog.height()) // 2
+            )
+
+class ApiKeysOverlay(QFrame):
+    closed = pyqtSignal()
+    saved = pyqtSignal(dict)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        
+        self.setStyleSheet("""
+            ApiKeysOverlay {
+                background: #0f0f11;
+                border: 1px solid rgba(255, 255, 255, 30);
+                border-radius: 24px;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 44, 40, 44)
+        layout.setSpacing(16)
+
+        def _lbl(txt, font_size=11, bold=False, color="#ffffff", align=Qt.AlignmentFlag.AlignCenter):
+            w = QLabel(txt)
+            w.setAlignment(align)
+            w.setFont(QFont("Inter", font_size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setStyleSheet(f"color: {color}; background: transparent;")
+            # Make labels ignore mouse events so we can drag from anywhere on the background
+            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            return w
+
+        layout.addWidget(_lbl("API Integrations", 18, True))
+        layout.addWidget(_lbl("Manage optional INDRA connections", 11, False, "#a1a1a6"))
+        layout.addSpacing(16)
+
+        self.inputs = {}
+
+        for key_id, label_txt in [
+            ("gemini_vision_api_key", "GEMINI VISION API KEY"),
+            ("elevenlabs_api_key", "ELEVENLABS API KEY"),
+            ("OPENWEATHER_API_KEY", "OPENWEATHER API KEY")
+        ]:
+            key_label_lay = QHBoxLayout()
+            key_label_lay.addWidget(_lbl(label_txt, 9, True, "#a1a1a6", Qt.AlignmentFlag.AlignLeft))
+            layout.addLayout(key_label_lay)
+
+            inp = QLineEdit()
+            inp.setEchoMode(QLineEdit.EchoMode.Password)
+            inp.setPlaceholderText("Enter Key (Optional)")
+            inp.setFont(QFont("JetBrains Mono", 11))
+            inp.setFixedHeight(46)
+            inp.setStyleSheet("""
+                QLineEdit {
+                    background: rgba(0, 0, 0, 80);
+                    color: #ffffff;
+                    border: 1px solid rgba(255, 255, 255, 20);
+                    border-radius: 14px;
+                    padding: 4px 16px;
+                }
+                QLineEdit:focus {
+                    border: 1px solid rgba(255, 255, 255, 80);
+                    background: rgba(255, 255, 255, 10);
+                }
+            """)
+            layout.addWidget(inp)
+            self.inputs[key_id] = inp
+
+        layout.addSpacing(20)
+
+        # Buttons
+        btn_lay = QHBoxLayout()
+        btn_lay.setSpacing(12)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
+        cancel_btn.setFixedHeight(48)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 40);
+                border-radius: 14px;
+            }
+            QPushButton:hover { background: rgba(255, 255, 255, 10); }
+        """)
+        cancel_btn.clicked.connect(self.closed.emit)
+        btn_lay.addWidget(cancel_btn)
+
+        save_btn = QPushButton("Save Keys")
+        save_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
+        save_btn.setFixedHeight(48)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: #ffffff;
+                color: #000000;
+                border: none;
+                border-radius: 14px;
+            }
+            QPushButton:hover { background: #e0e0e0; }
+            QPushButton:pressed { background: #cccccc; }
+        """)
+        save_btn.clicked.connect(self._save)
+        btn_lay.addWidget(save_btn)
+
+        layout.addLayout(btn_lay)
+
+    def populate(self, data: dict):
+        for k, inp in self.inputs.items():
+            inp.setText(data.get(k, ""))
+
+    def _save(self):
+        new_data = {k: inp.text().strip() for k, inp in self.inputs.items()}
+        self.saved.emit(new_data)
+        self.closed.emit()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos'):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
 
 
 class RemoteKeyOverlay(QWidget):
@@ -1200,7 +1397,7 @@ class RemoteKeyOverlay(QWidget):
 
     closed = pyqtSignal()
 
-    _OW, _OH = 400, 465
+    _OW, _OH = 620, 360
 
     def __init__(
         self,
@@ -1215,9 +1412,9 @@ class RemoteKeyOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             RemoteKeyOverlay {{
-                background: rgba(0, 4, 12, 0.95);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 14px;
+                background: #0a0a0a;
+                border: 1px solid #222222;
+                border-radius: 12px;
             }}
         """)
         self._expiry = time.time() + expiry_secs
@@ -1225,18 +1422,22 @@ class RemoteKeyOverlay(QWidget):
         self._auto_login_url = auto_login_url
         self._manual_url = manual_url or url
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 16, 24, 16)
-        lay.setSpacing(5)
+        main_lay = QHBoxLayout(self)
+        main_lay.setContentsMargins(32, 32, 32, 32)
+        main_lay.setSpacing(40)
+
+        # Left Column
+        left_lay = QVBoxLayout()
+        left_lay.setSpacing(8)
 
         def _lbl(
-            txt, fs=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter
+            txt, fs=10, bold=False, color="#dddddd", align=Qt.AlignmentFlag.AlignLeft
         ):
             w = QLabel(txt)
             w.setAlignment(align)
             w.setFont(
                 QFont(
-                    "Courier New",
+                    "Segoe UI",
                     fs,
                     QFont.Weight.Bold if bold else QFont.Weight.Normal,
                 )
@@ -1245,105 +1446,136 @@ class RemoteKeyOverlay(QWidget):
             w.setWordWrap(True)
             return w
 
-        lay.addWidget(_lbl("◈  REMOTE ACCESS", 12, True))
+        hdr = _lbl("REMOTE ACCESS", 14, True, "#ffffff")
+        hdr.setStyleSheet("color: #ffffff; background: transparent; letter-spacing: 2px;")
+        left_lay.addWidget(hdr)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER}; margin: 1px 0;")
-        lay.addWidget(sep)
+        sep.setStyleSheet("background: #2a2a2a; border: none; height: 1px; margin: 4px 0;")
+        left_lay.addWidget(sep)
 
-        # ── QR code ───────────────────────────────────────────────────────────
-        self._qr_label = QLabel()
-        self._qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._qr_label.setFixedSize(176, 176)
-        self._qr_label.setStyleSheet(
-            "background: white; border-radius: 10px; padding: 4px;"
-        )
-        qr_row = QHBoxLayout()
-        qr_row.addStretch()
-        qr_row.addWidget(self._qr_label)
-        qr_row.addStretch()
-        lay.addLayout(qr_row)
-
-        self._update_qr(auto_login_url)
-
-        lay.addWidget(
-            _lbl("Scan with phone camera to connect instantly", 8, color=C.TEXT_DIM)
-        )
-
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {C.BORDER}; margin: 1px 0;")
-        lay.addWidget(sep2)
-
-        lay.addWidget(
-            _lbl(
-                "Or enter manually:",
-                7,
-                color=C.TEXT_DIM,
-                align=Qt.AlignmentFlag.AlignLeft,
-            )
-        )
+        left_lay.addSpacing(10)
+        left_lay.addWidget(_lbl("MANUAL OVERRIDE URL", 8, bold=True, color="#888888"))
 
         self._url_lbl = QLabel(self._auto_login_url)
-        self._url_lbl.setFont(QFont("Courier New", 8))
-        self._url_lbl.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
-        self._url_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._url_lbl.setFont(QFont("Segoe UI", 9))
+        self._url_lbl.setStyleSheet("color: #aaaaaa; background: transparent;")
+        self._url_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._url_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._url_lbl.setWordWrap(True)
-        self._url_lbl.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        lay.addWidget(self._url_lbl)
+        left_lay.addWidget(self._url_lbl)
+
+        left_lay.addSpacing(15)
+        left_lay.addWidget(_lbl("AUTHENTICATION KEY", 8, bold=True, color="#888888"))
 
         self._key_lbl = QLabel(key)
-        self._key_lbl.setFont(QFont("Courier New", 28, QFont.Weight.Bold))
-        self._key_lbl.setStyleSheet(f"""
-            color: {C.ACC};
-            background: {C.PANEL2};
-            border: 1px solid {C.BORDER_B};
-            border-radius: 8px;
-            padding: 6px 4px;
-            letter-spacing: 10px;
+        self._key_lbl.setFont(QFont("Consolas", 32, QFont.Weight.Bold))
+        self._key_lbl.setStyleSheet("""
+            QLabel {
+                color: #ffffff;
+                background: #111111;
+                border: 1px solid #333333;
+                border-radius: 8px;
+                padding: 12px;
+                letter-spacing: 12px;
+            }
         """)
         self._key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(self._key_lbl)
+        left_lay.addWidget(self._key_lbl)
 
         self._timer_lbl = QLabel()
-        self._timer_lbl.setFont(QFont("Courier New", 8))
-        self._timer_lbl.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
-        self._timer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(self._timer_lbl)
+        self._timer_lbl.setFont(QFont("Segoe UI", 9))
+        self._timer_lbl.setStyleSheet("color: #666666; background: transparent;")
+        self._timer_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        left_lay.addWidget(self._timer_lbl)
+
+        left_lay.addStretch()
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(12)
+        
         new_btn = QPushButton("NEW KEY")
-        new_btn.setFixedHeight(32)
-        new_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        new_btn.setFixedHeight(36)
+        new_btn.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        new_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {C.PANEL}; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 5px;
-            }}
-            QPushButton:hover {{ background: {C.PRI_GHO}; border: 1px solid {C.PRI}; }}
+        new_btn.setStyleSheet("""
+            QPushButton {
+                background: #222222;
+                color: #ffffff;
+                border: 1px solid #444444;
+                border-radius: 6px;
+                letter-spacing: 1px;
+            }
+            QPushButton:hover {
+                background: #333333;
+                border: 1px solid #666666;
+            }
+            QPushButton:pressed {
+                background: #1a1a1a;
+            }
         """)
         new_btn.clicked.connect(self._refresh_key)
         btn_row.addWidget(new_btn)
 
         close_btn = QPushButton("DISMISS")
-        close_btn.setFixedHeight(32)
-        close_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        close_btn.setFixedHeight(36)
+        close_btn.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent; color: {C.TEXT_MED};
-                border: 1px solid {C.BORDER}; border-radius: 5px;
-            }}
-            QPushButton:hover {{ color: {C.TEXT}; border: 1px solid {C.BORDER_B}; }}
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #888888;
+                border: 1px solid #333333;
+                border-radius: 6px;
+                letter-spacing: 1px;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+                background: #1a1a1a;
+                border: 1px solid #555555;
+            }
+            QPushButton:pressed {
+                background: transparent;
+                border: 1px solid #222222;
+            }
         """)
         close_btn.clicked.connect(self._do_close)
         btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
+        
+        left_lay.addLayout(btn_row)
+        
+        # Right Column
+        right_lay = QVBoxLayout()
+        right_lay.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        
+        right_lay.addWidget(_lbl("SCAN TO CONNECT", 10, bold=True, color="#ffffff", align=Qt.AlignmentFlag.AlignCenter))
+        right_lay.addSpacing(12)
+        
+        qr_container = QFrame()
+        qr_container.setStyleSheet("""
+            QFrame {
+                background: #111111;
+                border: 1px solid #333333;
+                border-radius: 12px;
+            }
+        """)
+        qr_lay = QVBoxLayout(qr_container)
+        qr_lay.setContentsMargins(16, 16, 16, 16)
+        
+        self._qr_label = QLabel()
+        self._qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._qr_label.setFixedSize(180, 180)
+        self._qr_label.setStyleSheet("background: white; border-radius: 4px; padding: 4px;")
+        qr_lay.addWidget(self._qr_label)
+        
+        right_lay.addWidget(qr_container)
+        right_lay.addStretch()
+
+        main_lay.addLayout(left_lay, stretch=3)
+        main_lay.addLayout(right_lay, stretch=2)
+
+        self._update_qr(auto_login_url)
 
         self._ctimer = QTimer(self)
         self._ctimer.timeout.connect(self._tick)
@@ -1514,6 +1746,7 @@ class WebHudCanvas(QWebEngineView):
 
         # Fix transparent background so the dark UI theme from CSS shows properly
         self.page().setBackgroundColor(Qt.GlobalColor.transparent)
+        self.page().profile().clearHttpCache()
 
         url = QUrl.fromLocalFile(str(BASE_DIR / "assets" / "index.html"))
         self.load(url)
@@ -1534,6 +1767,8 @@ class FloatWidget(QWidget):
     def __init__(self, parent, x_anchor: float, y_anchor: float, w: int, h: int):
         super().__init__(parent)
         self.x_anchor = x_anchor
+        self.smart_x = None
+        self.smart_y = None
         self.y_anchor = y_anchor
         self._w = w
         self._h = h
@@ -1552,6 +1787,8 @@ class FloatWidget(QWidget):
         """)
 
         self.is_open = False
+        self._is_dragging = False
+        self._drag_start_pos = None
         
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
@@ -1570,10 +1807,23 @@ class FloatWidget(QWidget):
         self.hide()
 
     def _get_target_pos(self, pw: int, ph: int) -> tuple[int, int]:
+        if self.smart_x is not None and self.smart_y is not None:
+            return int(self.smart_x), int(self.smart_y)
         margin = 25
         target_x = margin if self.x_anchor == 0 else pw - self._w - margin if self.x_anchor == 1 else pw * self.x_anchor - self._w / 2
         target_y = margin if self.y_anchor == 0 else ph - self._h - margin if self.y_anchor == 1 else ph * self.y_anchor - self._h / 2
         return int(target_x), int(target_y)
+
+    def slide_to_smart_pos(self, pw: int, ph: int):
+        target_x, target_y = self._get_target_pos(pw, ph)
+        if self.pos().x() != target_x or self.pos().y() != target_y:
+            self.anim_group.stop()
+            self.anim_pos.setStartValue(self.pos())
+            self.anim_pos.setEndValue(QPoint(target_x, target_y))
+            self.anim_pos.setEasingCurve(QEasingCurve.Type.InOutCubic)
+            self.anim_opacity.setStartValue(self.opacity_effect.opacity())
+            self.anim_opacity.setEndValue(1.0)
+            self.anim_group.start()
 
     def _get_hidden_pos(self, target_x: int, target_y: int) -> tuple[int, int]:
         offset = 50
@@ -1633,6 +1883,26 @@ class FloatWidget(QWidget):
     def _on_anim_finished(self):
         if not self.is_open:
             self.hide()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = True
+            self._drag_start_pos = event.globalPosition().toPoint() - self.pos()
+            self.anim_group.stop()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._is_dragging:
+            new_pos = event.globalPosition().toPoint() - self._drag_start_pos
+            self.move(new_pos)
+            self.smart_x = new_pos.x()
+            self.smart_y = new_pos.y()
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = False
+            event.accept()
 
 class CameraThread(QThread):
     change_pixmap_signal = pyqtSignal(bytes)
@@ -1759,7 +2029,982 @@ class BootOverlay(QFrame):
         self.anim.finished.connect(self.deleteLater)
         self.anim.start()
 
+class ClickableFrame(QFrame):
+    clicked = pyqtSignal(str)
+    def __init__(self, game_name, parent=None):
+        super().__init__(parent)
+        self.game_name = game_name
+    def mousePressEvent(self, event):
+        self.clicked.emit(self.game_name)
+        super().mousePressEvent(event)
+
+class GameFetcherThread(QThread):
+    finished = pyqtSignal(dict)
+    def __init__(self, query: str):
+        super().__init__()
+        self.query = query
+    def run(self):
+        try:
+            from actions.game_api import search_steam_game
+            res = search_steam_game(self.query)
+            if res.get("image_url"):
+                import requests
+                img_data = requests.get(res["image_url"], timeout=5).content
+                res["image_bytes"] = img_data
+            else:
+                res["image_bytes"] = None
+            self.finished.emit(res)
+        except Exception as e:
+            self.finished.emit({"error": str(e)})
+
+class GameDetailWidget(FloatWidget):
+    def __init__(self, parent=None):
+        # Top-Left corner
+        super().__init__(parent, 0, 0.1, 440, 420)
+        self.inner.setStyleSheet(self.inner.styleSheet() + " QFrame#floatInner { background: rgba(15, 2, 5, 0.95); border: 1px solid #f43f5e; }")
+        
+        main_lay = QVBoxLayout(self.inner)
+        main_lay.setContentsMargins(20, 20, 20, 20)
+        main_lay.setSpacing(15)
+        
+        search_lay = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search any game...")
+        self.search_input.setStyleSheet("background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(244, 63, 94, 0.5); border-radius: 4px; padding: 5px;")
+        self.search_input.returnPressed.connect(self._do_search)
+        search_lay.addWidget(self.search_input)
+        
+        search_btn = QPushButton("SEARCH")
+        search_btn.setStyleSheet("background: #f43f5e; color: white; font-weight: bold; border-radius: 4px; padding: 5px 15px;")
+        search_btn.clicked.connect(self._do_search)
+        search_lay.addWidget(search_btn)
+        main_lay.addLayout(search_lay)
+        
+        self.img_lbl = QLabel()
+        self.img_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.img_lbl.setMinimumHeight(220)
+        self.img_lbl.setStyleSheet("background: rgba(0, 0, 0, 0.3); border-radius: 6px;")
+        main_lay.addWidget(self.img_lbl)
+        
+        self.details = QTextBrowser()
+        self.details.setStyleSheet("background: transparent; border: none; color: white; font-size: 13px; line-height: 1.5;")
+        self.details.setOpenExternalLinks(True)
+        main_lay.addWidget(self.details)
+        self.fetcher = None
+        
+    def _do_search(self):
+        q = self.search_input.text().strip()
+        if q:
+            self.fetch_game(q)
+            
+    def fetch_game(self, game_name: str):
+        if not self.is_open:
+            self.toggle()
+        self.search_input.setText(game_name)
+        self.img_lbl.setText("Scanning Steam Database...")
+        self.img_lbl.setStyleSheet("color: #f43f5e; font-weight: bold; font-size: 14px; background: rgba(0,0,0,0.3); border-radius: 6px;")
+        self.details.setText("")
+        
+        if self.fetcher and self.fetcher.isRunning():
+            self.fetcher.terminate()
+            self.fetcher.wait()
+            
+        self.fetcher = GameFetcherThread(game_name)
+        self.fetcher.finished.connect(self._on_fetched)
+        self.fetcher.start()
+        
+    def _on_fetched(self, data: dict):
+        if "error" in data:
+            self.img_lbl.setText("X")
+            self.details.setText(f"<span style='color:#f43f5e;'>Error: {data['error']}</span>")
+            return
+            
+        if data.get("image_bytes"):
+            px = QPixmap()
+            px.loadFromData(data["image_bytes"])
+            self.img_lbl.setPixmap(px.scaled(self.img_lbl.width(), 220, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self.img_lbl.setText("No Image")
+            
+        html = f"""
+        <h2 style='color:#f43f5e; margin-bottom:5px;'>{data.get('name', '')}</h2>
+        <p style='color:#aaaaaa; margin-top:0px;'>
+            <b>Released:</b> {data.get('release_date', 'Unknown')} &nbsp;|&nbsp;
+            <b>Genre:</b> {data.get('genres', 'Unknown')} &nbsp;|&nbsp;
+            <b>Platform:</b> {data.get('platforms', 'PC')}
+        </p>
+        <p><b>Developer:</b> {data.get('developers', 'Unknown')}<br>
+           <b>Publisher:</b> {data.get('publishers', 'Unknown')}</p>
+        <hr style='border: 1px solid rgba(244, 63, 94, 0.3);'>
+        <p>{data.get('description', '')}</p>
+        """
+        # Append system requirements if available (FreeToGame source)
+        sys_req_html = data.get("sys_req_html", "")
+        if sys_req_html:
+            html += f"""
+        <hr style='border: 1px solid rgba(244, 63, 94, 0.2);'>
+        <p style='color:#aaaaaa;'><b>MINIMUM SYSTEM REQUIREMENTS</b></p>
+        <p style='font-size:11px; color:#cccccc;'>{sys_req_html}</p>
+        """
+        # Source badge
+        source = data.get("source", "")
+        if source:
+            src_color = "#1b9aef" if source == "Steam" else "#d4323e"
+            html += f"<p style='color:{src_color}; font-size:10px; margin-top:8px;'>SOURCE: {source.upper()}</p>"
+
+        self.details.setHtml(html)
+
+# Platform colors and icons for the game panel
+_PLATFORM_META = {
+    "Steam": {"color": "#1b9aef", "icon": "⬡", "glow": "rgba(27, 154, 239, 0.15)"},
+    "Epic Games": {"color": "#8e44ad", "icon": "◈", "glow": "rgba(142, 68, 173, 0.15)"},
+    "Xbox / Game Pass": {"color": "#107c10", "icon": "⬡", "glow": "rgba(16, 124, 16, 0.15)"},
+    "Riot Games": {"color": "#d4323e", "icon": "◆", "glow": "rgba(212, 50, 62, 0.15)"},
+    "GOG": {"color": "#b48ef3", "icon": "◉", "glow": "rgba(180, 142, 243, 0.15)"},
+    "Battle.net": {"color": "#1ca7ff", "icon": "◈", "glow": "rgba(28, 167, 255, 0.15)"},
+    "EA App": {"color": "#f06c22", "icon": "◆", "glow": "rgba(240, 108, 34, 0.15)"},
+}
+_PLATFORM_DEFAULT = {"color": "#f43f5e", "icon": "◆", "glow": "rgba(244, 63, 94, 0.15)"}
+
+
+class GameListWidget(FloatWidget):
+    def __init__(self, parent=None):
+        # Bottom-Right corner
+        super().__init__(parent, 1, 0.6, 330, 480)
+        
+        # Override inner panel style for gaming dark theme
+        self.inner.setStyleSheet(
+            self.inner.styleSheet() + """
+            QFrame#floatInner {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(10, 3, 5, 0.97),
+                    stop:1 rgba(20, 5, 8, 0.95));
+                border: 1px solid rgba(244, 63, 94, 0.4);
+                border-radius: 12px;
+            }
+            """
+        )
+        
+        main_lay = QVBoxLayout(self.inner)
+        main_lay.setContentsMargins(0, 0, 0, 0)
+        main_lay.setSpacing(0)
+        
+        # ── Header bar ────────────────────────────────────────────────────
+        header_bar = QWidget()
+        header_bar.setFixedHeight(52)
+        header_bar.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 rgba(244, 63, 94, 0.25),
+                stop:1 rgba(244, 63, 94, 0.05));
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid rgba(244, 63, 94, 0.3);
+        """)
+        hlay = QHBoxLayout(header_bar)
+        hlay.setContentsMargins(16, 0, 16, 0)
+        
+        title_lbl = QLabel("⚡  GAME LIBRARY")
+        title_lbl.setStyleSheet(
+            "color: #f43f5e; font-size: 13px; font-weight: 900; "
+            "letter-spacing: 3px; background: transparent;"
+        )
+        title_lbl.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        
+        self._count_lbl = QLabel("0 TITLES")
+        self._count_lbl.setStyleSheet(
+            "color: rgba(244, 63, 94, 0.6); font-size: 10px; "
+            "letter-spacing: 2px; background: transparent;"
+        )
+        
+        hlay.addWidget(title_lbl)
+        hlay.addStretch()
+        hlay.addWidget(self._count_lbl)
+        main_lay.addWidget(header_bar)
+        
+        # ── Scroll area ───────────────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: rgba(255, 255, 255, 0.03);
+                width: 5px;
+                border-radius: 2px;
+                margin: 4px 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(244, 63, 94, 0.6);
+                min-height: 30px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #f43f5e;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        
+        self._container = QWidget()
+        self._container.setStyleSheet("background: transparent;")
+        self.lay = QVBoxLayout(self._container)
+        self.lay.setSpacing(0)
+        self.lay.setContentsMargins(12, 12, 12, 12)
+        
+        scroll.setWidget(self._container)
+        main_lay.addWidget(scroll, stretch=1)
+        
+        # ── Footer ────────────────────────────────────────────────────────
+        footer = QWidget()
+        footer.setFixedHeight(34)
+        footer.setStyleSheet("""
+            background: rgba(244, 63, 94, 0.05);
+            border-top: 1px solid rgba(244, 63, 94, 0.15);
+            border-radius: 0 0 12px 12px;
+        """)
+        flay = QHBoxLayout(footer)
+        flay.setContentsMargins(16, 0, 16, 0)
+        hint = QLabel("CLICK A GAME FOR DETAILS  •  AI SEARCH AVAILABLE")
+        hint.setStyleSheet("color: rgba(244, 63, 94, 0.4); font-size: 9px; letter-spacing: 1px; background: transparent;")
+        flay.addWidget(hint)
+        main_lay.addWidget(footer)
+        
+    def populate(self):
+        # Clear old content
+        while self.lay.count():
+            item = self.lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        try:
+            from actions.game_scanner import get_game_list
+            games_dict = get_game_list()
+        except Exception:
+            games_dict = {}
+            
+        total_games = sum(len(g) for g in games_dict.values())
+        self._count_lbl.setText(f"{total_games} TITLES")
+            
+        if not games_dict:
+            no_game = QLabel("No games detected.\nInstall Steam, Epic, Xbox App to\nauto-discover your library.")
+            no_game.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            no_game.setStyleSheet(
+                "color: rgba(255,255,255,0.3); font-size: 12px; "
+                "background: transparent; padding: 30px;"
+            )
+            self.lay.addWidget(no_game)
+            self.lay.addStretch()
+            return
+            
+        first_platform = True
+        for platform, games in games_dict.items():
+            meta = _PLATFORM_META.get(platform, _PLATFORM_DEFAULT)
+            clr = meta["color"]
+            glow = meta["glow"]
+            icon = meta["icon"]
+            
+            if not first_platform:
+                # Divider between platform sections
+                div = QWidget()
+                div.setFixedHeight(1)
+                div.setStyleSheet(f"background: rgba(255,255,255,0.05);")
+                self.lay.addWidget(div)
+                spacer = QWidget()
+                spacer.setFixedHeight(8)
+                spacer.setStyleSheet("background: transparent;")
+                self.lay.addWidget(spacer)
+            first_platform = False
+            
+            # ── Platform header ───────────────────────────────────────────
+            plat_frame = QWidget()
+            plat_frame.setFixedHeight(32)
+            plat_frame.setStyleSheet(f"""
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {glow}, stop:1 transparent);
+                border-left: 3px solid {clr};
+                border-radius: 0 4px 4px 0;
+                margin-bottom: 4px;
+            """)
+            plat_lay = QHBoxLayout(plat_frame)
+            plat_lay.setContentsMargins(10, 0, 10, 0)
+            
+            plat_icon = QLabel(icon)
+            plat_icon.setStyleSheet(f"color: {clr}; font-size: 12px; background: transparent;")
+            
+            plat_lbl = QLabel(platform.upper())
+            plat_lbl.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+            plat_lbl.setStyleSheet(
+                f"color: {clr}; font-size: 9px; letter-spacing: 2px; background: transparent;"
+            )
+            
+            count_badge = QLabel(f"{len(games)}")
+            count_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            count_badge.setFixedSize(22, 16)
+            count_badge.setStyleSheet(
+                f"background: {clr}; color: black; font-weight: 900; "
+                f"font-size: 9px; border-radius: 3px;"
+            )
+            
+            plat_lay.addWidget(plat_icon)
+            plat_lay.addWidget(plat_lbl)
+            plat_lay.addStretch()
+            plat_lay.addWidget(count_badge)
+            self.lay.addWidget(plat_frame)
+            
+            # ── Game rows ─────────────────────────────────────────────────
+            for g in games:
+                # Truncate long names to fit neatly
+                display_name = g if len(g) <= 38 else g[:35] + "…"
+                
+                row = ClickableFrame(g)
+                row.clicked.connect(self.window().open_game_details)
+                row.setFixedHeight(40)
+                row.setStyleSheet(f"""
+                    QFrame {{
+                        background: rgba(255, 255, 255, 0.03);
+                        border: 1px solid transparent;
+                        border-radius: 6px;
+                        margin: 2px 0;
+                    }}
+                    QFrame:hover {{
+                        background: {glow};
+                        border: 1px solid {clr};
+                    }}
+                """)
+                
+                rlay = QHBoxLayout(row)
+                rlay.setContentsMargins(10, 0, 10, 0)
+                rlay.setSpacing(8)
+                
+                # Color dot
+                dot = QLabel("●")
+                dot.setFixedWidth(12)
+                dot.setStyleSheet(f"color: {clr}; font-size: 8px; background: transparent; border: none;")
+                
+                # Game name
+                name_lbl = QLabel(display_name)
+                name_lbl.setStyleSheet(
+                    "color: rgba(255, 255, 255, 0.9); font-size: 12px; "
+                    "font-weight: 600; background: transparent; border: none;"
+                )
+                
+                # Arrow indicator
+                arrow = QLabel("›")
+                arrow.setStyleSheet(f"color: rgba(255,255,255,0.2); font-size: 16px; background: transparent; border: none;")
+                
+                rlay.addWidget(dot)
+                rlay.addWidget(name_lbl, stretch=1)
+                rlay.addWidget(arrow)
+                
+                self.lay.addWidget(row)
+            
+            # Small spacing after each platform section
+            sp = QWidget()
+            sp.setFixedHeight(6)
+            sp.setStyleSheet("background: transparent;")
+            self.lay.addWidget(sp)
+            
+        self.lay.addStretch()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGNI EXCLUSIVE — Game Deals Widget
+# ═══════════════════════════════════════════════════════════════════════════════
+_STORE_NAMES = {
+    "1": "Steam", "7": "GOG", "8": "EA", "11": "Humble",
+    "15": "Fanatical", "21": "WinGameStore", "25": "Epic",
+}
+
+class DealsFetchThread(QThread):
+    finished = pyqtSignal(list)
+    def run(self):
+        try:
+            import requests
+            r = requests.get(
+                "https://www.cheapshark.com/api/1.0/deals"
+                "?pageSize=12&sortBy=DealRating&lowerPrice=0&upperPrice=60",
+                timeout=8,
+            )
+            self.finished.emit(r.json() if r.ok else [])
+        except Exception:
+            self.finished.emit([])
+
+
+class GameDealsWidget(FloatWidget):
+    """AGNI exclusive: live game deals from CheapShark — no API key needed."""
+
+    def __init__(self, parent=None):
+        # Bottom-Left corner
+        super().__init__(parent, 0, 0.6, 330, 480)
+
+        self.inner.setStyleSheet(
+            self.inner.styleSheet() + """
+            QFrame#floatInner {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(5, 10, 5, 0.97),
+                    stop:1 rgba(10, 20, 10, 0.95));
+                border: 1px solid rgba(16, 124, 16, 0.5);
+                border-radius: 12px;
+            }
+            """
+        )
+
+        main_lay = QVBoxLayout(self.inner)
+        main_lay.setContentsMargins(0, 0, 0, 0)
+        main_lay.setSpacing(0)
+
+        # Header
+        hdr = QWidget()
+        hdr.setFixedHeight(50)
+        hdr.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 rgba(16,124,16,0.35), stop:1 rgba(16,124,16,0.05));
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid rgba(16,124,16,0.4);
+        """)
+        hlay = QHBoxLayout(hdr)
+        hlay.setContentsMargins(14, 0, 14, 0)
+        title = QLabel("HOT DEALS")
+        title.setStyleSheet(
+            "color: #22c55e; font-size: 12px; font-weight: 900; "
+            "letter-spacing: 3px; background: transparent;"
+        )
+        self._refresh_btn = QPushButton("↻")
+        self._refresh_btn.setFixedSize(28, 28)
+        self._refresh_btn.setStyleSheet("""
+            QPushButton { background: rgba(34,197,94,0.15); color: #22c55e;
+                border: 1px solid rgba(34,197,94,0.3); border-radius: 14px;
+                font-size: 14px; font-weight: 700; }
+            QPushButton:hover { background: rgba(34,197,94,0.3); }
+        """)
+        self._refresh_btn.clicked.connect(self.refresh)
+        self._status = QLabel("Loading...")
+        self._status.setStyleSheet(
+            "color: rgba(34,197,94,0.5); font-size: 10px; background: transparent;"
+        )
+        hlay.addWidget(title)
+        hlay.addStretch()
+        hlay.addWidget(self._status)
+        hlay.addWidget(self._refresh_btn)
+        main_lay.addWidget(hdr)
+
+        # Scrollable deal list
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical { background: rgba(255,255,255,0.04); width: 4px; border-radius: 2px; }
+            QScrollBar::handle:vertical { background: rgba(34,197,94,0.4); border-radius: 2px; }
+        """)
+        self._list_container = QWidget()
+        self._list_container.setStyleSheet("background: transparent;")
+        self._list_lay = QVBoxLayout(self._list_container)
+        self._list_lay.setContentsMargins(6, 6, 6, 6)
+        self._list_lay.setSpacing(4)
+        scroll.setWidget(self._list_container)
+        main_lay.addWidget(scroll, stretch=1)
+
+        # Footer
+        ftr = QLabel("Powered by CheapShark API • Click to view on Steam")
+        ftr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ftr.setStyleSheet(
+            "color: rgba(34,197,94,0.35); font-size: 9px; "
+            "padding: 6px; background: transparent;"
+        )
+        main_lay.addWidget(ftr)
+
+        self.refresh()
+
+    def refresh(self):
+        self._status.setText("Fetching...")
+        self._refresh_btn.setEnabled(False)
+        self._fetcher = DealsFetchThread()
+        self._fetcher.finished.connect(self._on_deals)
+        self._fetcher.start()
+
+    def _on_deals(self, deals: list):
+        self._refresh_btn.setEnabled(True)
+        self._status.setText(f"{len(deals)} deals")
+
+        # Clear old entries
+        while self._list_lay.count():
+            item = self._list_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not deals:
+            lbl = QLabel("Could not fetch deals. Check connection.")
+            lbl.setStyleSheet("color: rgba(255,255,255,0.4); padding: 20px; background: transparent;")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._list_lay.addWidget(lbl)
+            return
+
+        for deal in deals:
+            sale = float(deal.get("salePrice", 0))
+            normal = float(deal.get("normalPrice", 0))
+            savings = float(deal.get("savings", 0))
+            title = deal.get("title", "Unknown")
+            store_id = deal.get("storeID", "1")
+            store = _STORE_NAMES.get(store_id, f"Store {store_id}")
+            metacritic = deal.get("metacriticScore", "")
+            deal_id = deal.get("dealID", "")
+            steam_id = deal.get("steamAppID", "")
+
+            # Color by discount level
+            if savings >= 90:
+                accent = "#ff4500"  # blazing red
+            elif savings >= 75:
+                accent = "#f43f5e"  # hot pink
+            elif savings >= 50:
+                accent = "#f97316"  # orange
+            elif sale == 0:
+                accent = "#22c55e"  # free = green
+            else:
+                accent = "#84cc16"  # mild
+
+            row = QFrame()
+            row.setStyleSheet(f"""
+                QFrame {{
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid rgba(255,255,255,0.06);
+                    border-left: 3px solid {accent};
+                    border-radius: 6px;
+                }}
+                QFrame:hover {{
+                    background: rgba(34,197,94,0.08);
+                    border-left: 3px solid {accent};
+                }}
+            """)
+            row.setFixedHeight(62)
+            row.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            # Click to open Steam store page
+            def _open(checked, sid=steam_id, did=deal_id):
+                import webbrowser
+                if sid:
+                    webbrowser.open(f"https://store.steampowered.com/app/{sid}/")
+                else:
+                    webbrowser.open(f"https://www.cheapshark.com/redirect?dealID={did}")
+
+            row.mousePressEvent = _open
+
+            rlay = QHBoxLayout(row)
+            rlay.setContentsMargins(10, 6, 10, 6)
+            rlay.setSpacing(8)
+
+            # Left: badge
+            badge = QLabel("FREE" if sale == 0 else f"-{int(savings)}%")
+            badge.setFixedWidth(48)
+            badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            badge.setStyleSheet(f"""
+                background: {accent}; color: white; font-size: 9px; font-weight: 900;
+                border-radius: 4px; padding: 2px;
+            """)
+
+            # Center: title + store
+            info = QVBoxLayout()
+            info.setSpacing(1)
+            name_lbl = QLabel(title[:36] + ("…" if len(title) > 36 else ""))
+            name_lbl.setStyleSheet(
+                "color: rgba(255,255,255,0.92); font-size: 11px; "
+                "font-weight: 700; background: transparent;"
+            )
+            sub_parts = [store]
+            if metacritic and metacritic != "0":
+                sub_parts.append(f"Meta: {metacritic}")
+            store_lbl = QLabel("  •  ".join(sub_parts))
+            store_lbl.setStyleSheet(
+                "color: rgba(255,255,255,0.4); font-size: 9px; background: transparent;"
+            )
+            info.addWidget(name_lbl)
+            info.addWidget(store_lbl)
+
+            # Right: price
+            price_col = QVBoxLayout()
+            price_col.setSpacing(0)
+            if sale == 0:
+                price_lbl = QLabel("FREE")
+                price_lbl.setStyleSheet(
+                    "color: #22c55e; font-size: 13px; font-weight: 900; background: transparent;"
+                )
+            else:
+                price_lbl = QLabel(f"${sale:.2f}")
+                price_lbl.setStyleSheet(
+                    f"color: {accent}; font-size: 12px; font-weight: 900; background: transparent;"
+                )
+            was_lbl = QLabel(f"${normal:.2f}")
+            was_lbl.setStyleSheet(
+                "color: rgba(255,255,255,0.25); font-size: 9px; "
+                "text-decoration: line-through; background: transparent;"
+            )
+            price_col.addWidget(price_lbl)
+            price_col.addWidget(was_lbl)
+
+            rlay.addWidget(badge)
+            rlay.addLayout(info, stretch=1)
+            rlay.addLayout(price_col)
+
+            self._list_lay.addWidget(row)
+
+        self._list_lay.addStretch()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGNI EXCLUSIVE — Gaming News Widget
+# ═══════════════════════════════════════════════════════════════════════════════
+class NewsFetchThread(QThread):
+    finished = pyqtSignal(list)
+    def run(self):
+        try:
+            import requests, xml.etree.ElementTree as ET
+            # IGN gaming RSS feed (free, no key)
+            r = requests.get(
+                "https://feeds.feedburner.com/ign/games-all",
+                timeout=8,
+                headers={"User-Agent": "Mozilla/5.0 INDRA-GameBot/1.0"},
+            )
+            if not r.ok:
+                self.finished.emit([])
+                return
+            root = ET.fromstring(r.content)
+            items = []
+            for item in root.findall(".//item")[:10]:
+                title_el = item.find("title")
+                link_el = item.find("link")
+                pub_el = item.find("pubDate")
+                title = title_el.text.strip() if title_el is not None and title_el.text else ""
+                link = link_el.text.strip() if link_el is not None and link_el.text else ""
+                pub = pub_el.text.strip()[:16] if pub_el is not None and pub_el.text else ""
+                if title:
+                    items.append({"title": title, "link": link, "pub": pub})
+            self.finished.emit(items)
+        except Exception:
+            # Fallback: Rock Paper Shotgun
+            try:
+                import requests, xml.etree.ElementTree as ET
+                r = requests.get("https://www.rockpapershotgun.com/feed", timeout=8,
+                                 headers={"User-Agent": "Mozilla/5.0"})
+                root = ET.fromstring(r.content)
+                items = []
+                for item in root.findall(".//item")[:10]:
+                    te = item.find("title")
+                    le = item.find("link")
+                    t = te.text.strip() if te is not None and te.text else ""
+                    l = le.text.strip() if le is not None and le.text else ""
+                    if t:
+                        items.append({"title": t, "link": l, "pub": ""})
+                self.finished.emit(items)
+            except Exception:
+                self.finished.emit([])
+
+
+class GamingNewsWidget(FloatWidget):
+    """AGNI exclusive: latest gaming headlines."""
+
+    def __init__(self, parent=None):
+        # Top-Right corner
+        super().__init__(parent, 1, 0.1, 420, 240)
+
+        self.inner.setStyleSheet(
+            self.inner.styleSheet() + """
+            QFrame#floatInner {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(8, 4, 15, 0.97),
+                    stop:1 rgba(15, 5, 25, 0.95));
+                border: 1px solid rgba(168, 85, 247, 0.45);
+                border-radius: 12px;
+            }
+            """
+        )
+
+        main_lay = QVBoxLayout(self.inner)
+        main_lay.setContentsMargins(0, 0, 0, 0)
+        main_lay.setSpacing(0)
+
+        # Header
+        hdr = QWidget()
+        hdr.setFixedHeight(50)
+        hdr.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 rgba(168,85,247,0.30), stop:1 rgba(168,85,247,0.05));
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid rgba(168,85,247,0.35);
+        """)
+        hlay = QHBoxLayout(hdr)
+        hlay.setContentsMargins(14, 0, 14, 0)
+        title = QLabel("GAMING NEWS")
+        title.setStyleSheet(
+            "color: #a855f7; font-size: 12px; font-weight: 900; "
+            "letter-spacing: 3px; background: transparent;"
+        )
+        self._news_status = QLabel("Loading...")
+        self._news_status.setStyleSheet(
+            "color: rgba(168,85,247,0.5); font-size: 10px; background: transparent;"
+        )
+        self._news_refresh = QPushButton("↻")
+        self._news_refresh.setFixedSize(28, 28)
+        self._news_refresh.setStyleSheet("""
+            QPushButton { background: rgba(168,85,247,0.15); color: #a855f7;
+                border: 1px solid rgba(168,85,247,0.3); border-radius: 14px;
+                font-size: 14px; font-weight: 700; }
+            QPushButton:hover { background: rgba(168,85,247,0.3); }
+        """)
+        self._news_refresh.clicked.connect(self.refresh)
+        hlay.addWidget(title)
+        hlay.addStretch()
+        hlay.addWidget(self._news_status)
+        hlay.addWidget(self._news_refresh)
+        main_lay.addWidget(hdr)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical { background: rgba(255,255,255,0.04); width: 4px; border-radius: 2px; }
+            QScrollBar::handle:vertical { background: rgba(168,85,247,0.4); border-radius: 2px; }
+        """)
+        self._news_container = QWidget()
+        self._news_container.setStyleSheet("background: transparent;")
+        self._news_lay = QVBoxLayout(self._news_container)
+        self._news_lay.setContentsMargins(8, 8, 8, 8)
+        self._news_lay.setSpacing(5)
+        scroll.setWidget(self._news_container)
+        main_lay.addWidget(scroll, stretch=1)
+
+        ftr = QLabel("Live gaming headlines • Click to read full article")
+        ftr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ftr.setStyleSheet(
+            "color: rgba(168,85,247,0.3); font-size: 9px; padding: 6px; background: transparent;"
+        )
+        main_lay.addWidget(ftr)
+
+        self.refresh()
+
+    def refresh(self):
+        self._news_status.setText("Fetching...")
+        self._news_refresh.setEnabled(False)
+        self._fetcher = NewsFetchThread()
+        self._fetcher.finished.connect(self._on_news)
+        self._fetcher.start()
+
+    def _on_news(self, items: list):
+        self._news_refresh.setEnabled(True)
+        self._news_status.setText(f"{len(items)} articles")
+
+        while self._news_lay.count():
+            item = self._news_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not items:
+            lbl = QLabel("Could not load news. Check your internet connection.")
+            lbl.setStyleSheet("color: rgba(255,255,255,0.4); padding: 20px; background: transparent;")
+            lbl.setWordWrap(True)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._news_lay.addWidget(lbl)
+            return
+
+        accents = ["#a855f7", "#c084fc", "#d8b4fe", "#9333ea", "#7c3aed"]
+        for i, art in enumerate(items):
+            clr = accents[i % len(accents)]
+            row = QFrame()
+            row.setStyleSheet(f"""
+                QFrame {{
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid rgba(255,255,255,0.06);
+                    border-left: 3px solid {clr};
+                    border-radius: 6px;
+                }}
+                QFrame:hover {{ background: rgba(168,85,247,0.1); }}
+            """)
+            row.setCursor(Qt.CursorShape.PointingHandCursor)
+
+            link_url = art.get("link", "")
+            def _open(ev, url=link_url):
+                import webbrowser
+                if url:
+                    webbrowser.open(url)
+            row.mousePressEvent = _open
+
+            rlay = QVBoxLayout(row)
+            rlay.setContentsMargins(10, 7, 10, 7)
+            rlay.setSpacing(2)
+
+            headline = QLabel(art["title"])
+            headline.setWordWrap(True)
+            headline.setStyleSheet(
+                "color: rgba(255,255,255,0.9); font-size: 11px; font-weight: 600; background: transparent;"
+            )
+            pub_lbl = QLabel(art.get("pub", ""))
+            pub_lbl.setStyleSheet(
+                f"color: {clr}; font-size: 9px; background: transparent;"
+            )
+            rlay.addWidget(headline)
+            if art.get("pub"):
+                rlay.addWidget(pub_lbl)
+            self._news_lay.addWidget(row)
+
+        self._news_lay.addStretch()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGNI EXCLUSIVE — Gaming HUD / Live Stats Widget
+# ═══════════════════════════════════════════════════════════════════════════════
+class GamingHUDWidget(FloatWidget):
+    """AGNI exclusive: real-time gaming performance monitor.
+    Shows GPU%, GPU Temp, VRAM, CPU%, RAM, session timer."""
+
+    def __init__(self, parent=None):
+        # Bottom of screen using y_anchor=1 (25px from bottom)
+        super().__init__(parent, 0.5, 1, 720, 78)
+
+        self.inner.setStyleSheet(
+            self.inner.styleSheet() + """
+            QFrame#floatInner {
+                background: rgba(5, 2, 8, 0.92);
+                border: 1px solid rgba(244, 63, 94, 0.4);
+                border-radius: 10px;
+            }
+            """
+        )
+
+        import time as _time
+        self._session_start = _time.time()
+
+        lay = QHBoxLayout(self.inner)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(0)
+
+        self._stat_labels = {}
+
+        def _stat_block(icon: str, label: str, key: str, accent: str):
+            block = QFrame()
+            block.setStyleSheet(f"""
+                QFrame {{
+                    border-right: 1px solid rgba(255,255,255,0.08);
+                    background: transparent;
+                }}
+            """)
+            bl = QVBoxLayout(block)
+            bl.setContentsMargins(12, 0, 12, 0)
+            bl.setSpacing(1)
+            # Icon + label row
+            top = QHBoxLayout()
+            top.setSpacing(4)
+            ico = QLabel(icon)
+            ico.setStyleSheet(f"color: {accent}; font-size: 13px; background: transparent;")
+            lbl = QLabel(label)
+            lbl.setStyleSheet("color: rgba(255,255,255,0.35); font-size: 8px; background: transparent; letter-spacing: 1px;")
+            top.addWidget(ico)
+            top.addWidget(lbl)
+            top.addStretch()
+            val = QLabel("--")
+            val.setStyleSheet(f"color: {accent}; font-size: 18px; font-weight: 900; background: transparent;")
+            bl.addLayout(top)
+            bl.addWidget(val)
+            self._stat_labels[key] = val
+            return block
+
+        lay.addWidget(_stat_block("", "CPU", "cpu", "#38bdf8"))
+        lay.addWidget(_stat_block("", "RAM", "ram", "#a855f7"))
+        lay.addWidget(_stat_block("", "GPU", "gpu", "#f43f5e"))
+        lay.addWidget(_stat_block("", "TEMP", "temp", "#f97316"))
+        lay.addWidget(_stat_block("", "VRAM", "vram", "#22c55e"))
+
+        # Session timer (no border on last block)
+        timer_block = QFrame()
+        timer_block.setStyleSheet("background: transparent;")
+        tl = QVBoxLayout(timer_block)
+        tl.setContentsMargins(12, 0, 4, 0)
+        tl.setSpacing(1)
+        top2 = QHBoxLayout()
+        top2.setSpacing(4)
+        ico2 = QLabel("")
+        ico2.setStyleSheet("color: #fbbf24; font-size: 13px; background: transparent;")
+        lbl2 = QLabel("SESSION")
+        lbl2.setStyleSheet("color: rgba(255,255,255,0.35); font-size: 8px; background: transparent; letter-spacing: 1px;")
+        top2.addWidget(ico2)
+        top2.addWidget(lbl2)
+        top2.addStretch()
+        self._session_lbl = QLabel("00:00")
+        self._session_lbl.setStyleSheet(
+            "color: #fbbf24; font-size: 18px; font-weight: 900; background: transparent;"
+        )
+        tl.addLayout(top2)
+        tl.addWidget(self._session_lbl)
+        lay.addWidget(timer_block)
+
+        # Update timer
+        self._hud_timer = QTimer(self)
+        self._hud_timer.timeout.connect(self._update_hud)
+        self._hud_timer.start(2000)
+        self._update_hud()
+
+    def _update_hud(self):
+        import time as _t
+        try:
+            snap = _metrics.snapshot()
+            cpu = snap.get("cpu", 0)
+            mem = snap.get("mem", 0)
+            gpu = snap.get("gpu", -1)
+            tmp = snap.get("tmp", -1)
+
+            self._stat_labels["cpu"].setText(f"{cpu:.0f}%")
+            self._stat_labels["ram"].setText(f"{mem:.0f}%")
+            self._stat_labels["gpu"].setText(f"{gpu:.0f}%" if gpu >= 0 else "N/A")
+            self._stat_labels["temp"].setText(f"{tmp:.0f}°" if tmp >= 0 else "N/A")
+
+            # VRAM via nvidia-smi
+            try:
+                import subprocess
+                r = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=memory.used,memory.total",
+                     "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, timeout=1,
+                )
+                used, total = r.stdout.strip().split(", ")
+                self._stat_labels["vram"].setText(f"{int(used)}M")
+            except Exception:
+                self._stat_labels["vram"].setText("N/A")
+
+            # Session timer
+            elapsed = int(_t.time() - self._session_start)
+            h, rem = divmod(elapsed, 3600)
+            m, s = divmod(rem, 60)
+            self._session_lbl.setText(
+                f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+            )
+
+            # Color CPU/GPU red if overloaded
+            cpu_clr = "#ff4444" if cpu > 85 else "#38bdf8"
+            gpu_clr = "#ff4444" if (gpu >= 0 and gpu > 90) else "#f43f5e"
+            tmp_clr = "#ff4444" if (tmp >= 0 and tmp > 80) else "#f97316"
+            self._stat_labels["cpu"].setStyleSheet(
+                f"color: {cpu_clr}; font-size: 18px; font-weight: 900; background: transparent;"
+            )
+            self._stat_labels["gpu"].setStyleSheet(
+                f"color: {gpu_clr}; font-size: 18px; font-weight: 900; background: transparent;"
+            )
+            self._stat_labels["temp"].setStyleSheet(
+                f"color: {tmp_clr}; font-size: 18px; font-weight: 900; background: transparent;"
+            )
+        except Exception:
+            pass
+
+    def showEvent(self, event):
+        """Reset session timer each time the HUD is shown (AGNI activated)."""
+        import time as _t
+        self._session_start = _t.time()
+        super().showEvent(event)
+
+
 class MainWindow(QMainWindow):
+
 
     _log_sig = pyqtSignal(str)
     _state_sig = pyqtSignal(str)
@@ -1788,12 +3033,20 @@ class MainWindow(QMainWindow):
         central.setStyleSheet(f"background: {C.BG};")
         self.setCentralWidget(central)
 
-        root = QVBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        self._atlas_mode = False
         
-        self.hud = WebHudCanvas()
-        root.addWidget(self.hud, stretch=1)
+        # Atlas Map Layer (back)
+        self.atlas_view = QWebEngineView(central)
+        self.atlas_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+        self.atlas_view.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        self.atlas_view.page().setBackgroundColor(Qt.GlobalColor.black)
+        self.atlas_view.page().profile().clearHttpCache()
+        self.atlas_view.hide()
+        url = QUrl.fromLocalFile(str(BASE_DIR / "assets" / "atlas.html"))
+        self.atlas_view.load(url)
+        
+        # INDRA Orb Layer (front)
+        self.hud = WebHudCanvas(central)
 
         # Floating Widgets: anchor x, anchor y, w, h
         # Top Center: Time
@@ -1818,6 +3071,24 @@ class MainWindow(QMainWindow):
         self._webcam_panel = FloatWidget(central, 0.5, 0.5, 350, 250)
         self._build_webcam_monitor(self._webcam_panel.inner)
         
+        self._agents_panel = FloatWidget(central, 0.82, 0.3, 280, 220)
+        self._build_agents_panel(self._agents_panel.inner)
+        
+        self._games_panel = GameListWidget(central)
+        self._games_panel.populate()
+        self._games_panel.hide()
+        
+        self._game_detail_panel = GameDetailWidget(central)
+        self._game_detail_panel.hide()
+
+        # AGNI-exclusive extra panels
+        self._game_deals_panel = GameDealsWidget(central)
+        self._game_deals_panel.hide()
+        self._gaming_news_panel = GamingNewsWidget(central)
+        self._gaming_news_panel.hide()
+        self._gaming_hud_panel = GamingHUDWidget(central)
+        self._gaming_hud_panel.hide()
+        
         self._right_panel = FloatWidget(central, 1, 0.5, _RIGHT_W + 20, 300)
         self._build_log_only(self._right_panel.inner)
 
@@ -1838,14 +3109,20 @@ class MainWindow(QMainWindow):
         self._metric_tmr.start(2000)
         self._update_metrics()
 
+        self._sync_tmr = QTimer(self)
+        self._sync_tmr.timeout.connect(self._sync_widget_bounds)
+        self._sync_tmr.start(1000 // 60) # 60 FPS smooth tracking
+
         self._log_sig.connect(self._log.append_log, Qt.ConnectionType.QueuedConnection)
         self._state_sig.connect(self._apply_state, Qt.ConnectionType.QueuedConnection)
         self._ui_cmd_sig.connect(self._handle_ui_cmd, Qt.ConnectionType.QueuedConnection)
         self._phone_sig.connect(self._handle_phone_conn, Qt.ConnectionType.QueuedConnection)
 
         self._overlay: SetupOverlay | None = None
+        self._api_keys_overlay: ApiKeysOverlay | None = None
         self._ready = self._check_config()
         if not self._ready:
+            self.hud.hide()
             self._show_setup()
         else:
             self.hud.hide() # Crucial: fully hide WebEngine to prevent OpenGL bleed
@@ -1864,10 +3141,50 @@ class MainWindow(QMainWindow):
         else:
             self.showFullScreen()
 
+    def toggle_atlas_mode(self, show: bool = True):
+        self._atlas_mode = show
+        
+        if not hasattr(self, 'hud_anim'):
+            self.hud_anim = QPropertyAnimation(self.hud, b"geometry")
+            self.hud_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+            self.hud_anim.setDuration(800)
+            
+        if show:
+            self.atlas_view.show()
+            self.atlas_view.page().runJavaScript("window.dispatchEvent(new Event('resize'));")
+            self.hud.page().runJavaScript("if(window.setMapMode) window.setMapMode(true);")
+            self.hud_anim.setStartValue(self.hud.geometry())
+            self.hud_anim.setEndValue(QRect(20, 20, 300, 300))
+            self.hud_anim.start()
+            
+            # Hide some panels that might block the view
+            if self._sys_panel.is_open: self._sys_panel.toggle(False)
+            if self._vision_panel.is_open: self._vision_panel.toggle(False)
+        else:
+            cw = self.centralWidget()
+            self.hud.page().runJavaScript("if(window.setMapMode) window.setMapMode(false);")
+            self.hud_anim.setStartValue(self.hud.geometry())
+            self.hud_anim.setEndValue(QRect(0, 0, cw.width(), cw.height()))
+            self.hud_anim.finished.connect(self._hide_atlas_after_anim)
+            self.hud_anim.start()
+            
+    def _hide_atlas_after_anim(self):
+        self.hud_anim.finished.disconnect(self._hide_atlas_after_anim)
+        if not self._atlas_mode:
+            self.atlas_view.hide()
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cw = self.centralWidget()
         pw, ph = cw.width(), cw.height()
+        
+        if getattr(self, '_atlas_mode', False):
+            if hasattr(self, 'atlas_view'): self.atlas_view.setGeometry(0, 0, pw, ph)
+            # When in atlas mode, HUD geometry is managed by QPropertyAnimation
+        else:
+            if hasattr(self, 'atlas_view'): self.atlas_view.setGeometry(0, 0, pw, ph)
+            if hasattr(self, 'hud'): self.hud.setGeometry(0, 0, pw, ph)
+            
         for p in [getattr(self, k, None) for k in ('_sys_panel', '_vision_panel', '_right_panel', '_title_panel', '_time_panel', '_status_panel', '_bottom_panel', '_upload_panel', '_cmd_panel')]:
             if p: p.update_geometry(pw, ph)
         if hasattr(self, 'boot_overlay') and self.boot_overlay:
@@ -1875,11 +3192,13 @@ class MainWindow(QMainWindow):
                 self.boot_overlay.resize(pw, ph)
             except RuntimeError:
                 pass
-        if self._overlay and self._overlay.isVisible():
-            ow, oh = 460, 390
-            self._overlay.setGeometry(
-                (cw.width() - ow) // 2,
-                (cw.height() - oh) // 2,
+        if self._overlay:
+            self._overlay.setGeometry(0, 0, pw, ph)
+        if hasattr(self, '_api_keys_overlay') and self._api_keys_overlay:
+            ow, oh = 540, 520
+            self._api_keys_overlay.setGeometry(
+                cw.width() - ow - 30,
+                30,
                 ow,
                 oh,
             )
@@ -1943,28 +3262,134 @@ class MainWindow(QMainWindow):
             self._proc_lbl.setText("PROC  --")
 
 
+    def _apply_theme(self, mode: str):
+        """Swaps the UI theme between INDRA, VAYU, and AGNI."""
+        self._time_panel.setStyleSheet(self._time_panel.styleSheet().replace("#38bdf8", C.PRI).replace("#f43f5e", C.PRI))
+        
+        if mode == "vayu":
+            panels_to_close = [self._games_panel, getattr(self, '_game_detail_panel', None)]
+            to_toggle = [p for p in panels_to_close if p and p.is_open]
+            if to_toggle:
+                for p in to_toggle: p.is_open = False
+                self._update_smart_layout()
+                for p in to_toggle: p.is_open = True
+                for p in to_toggle: p.toggle()
+            if hasattr(self, '_status_lbl'):
+                self._status_lbl.setText("VAYU ONLINE")
+                self._status_lbl.setStyleSheet("color: #38bdf8; background: transparent;")
+            if hasattr(self, '_title_lbl'):
+                self._title_lbl.setText("V.A.Y.U")
+                self._title_lbl.setStyleSheet("color: #38bdf8; background: transparent;")
+                self._sub_lbl.setText("Visual Analysis and Yield Unit")
+                self._sub_lbl.setStyleSheet("color: rgba(56, 189, 248, 0.7); background: transparent;")
+            self._time_panel.setStyleSheet(self._time_panel.styleSheet().replace(C.PRI, "#38bdf8").replace(C.PRI_DIM, "#38bdf8"))
+            if hasattr(self, 'hud'):
+                self.hud.page().runJavaScript("if (typeof window.setTheme === 'function') window.setTheme('vayu');")
+        elif mode == "agni":
+            # Close all other panels to keep the UI clean for gaming
+            panels_to_close = [self._sys_panel, self._vision_panel, self._right_panel, 
+                               self._agents_panel, self._upload_panel, self._cmd_panel, self._webcam_panel]
+            to_toggle = [p for p in panels_to_close if p.is_open]
+            if to_toggle:
+                for p in to_toggle: p.is_open = False
+                self._update_smart_layout()
+                for p in to_toggle: p.is_open = True
+                for p in to_toggle: p.toggle()
+                
+            if hasattr(self, '_status_lbl'):
+                self._status_lbl.setText("AGNI ONLINE")
+                self._status_lbl.setStyleSheet("color: #f43f5e; background: transparent;")
+            if hasattr(self, '_title_lbl'):
+                self._title_lbl.setText("A.G.N.I")
+                self._title_lbl.setStyleSheet("color: #f43f5e; background: transparent;")
+                self._sub_lbl.setText("Advanced Gaming Network Interface")
+                self._sub_lbl.setStyleSheet("color: rgba(244, 63, 94, 0.7); background: transparent;")
+            self._time_panel.setStyleSheet(self._time_panel.styleSheet().replace(C.PRI, "#f43f5e").replace(C.PRI_DIM, "#f43f5e"))
+            if hasattr(self, 'hud'):
+                self.hud.page().runJavaScript("if (typeof window.setTheme === 'function') window.setTheme('agni');")
+
+        # For VAYU and INDRA: close all gaming panels
+        if mode in ("vayu", "indra"):
+            all_gaming = [
+                self._games_panel,
+                getattr(self, '_game_detail_panel', None),
+                getattr(self, '_game_deals_panel', None),
+                getattr(self, '_gaming_news_panel', None),
+                getattr(self, '_gaming_hud_panel', None),
+            ]
+            to_toggle = [p for p in all_gaming if p and p.is_open]
+            if to_toggle:
+                for p in to_toggle: p.is_open = False
+                self._update_smart_layout()
+                for p in to_toggle: p.is_open = True
+                for p in to_toggle: p.toggle()
+
+        if mode == "vayu":
+            pass  # vayu-specific label/color already set above
+        elif mode == "agni":
+            pass  # agni-specific label/color already set above
+        else:
+            if hasattr(self, '_status_lbl'):
+                self._status_lbl.setText("INDRA CORE")
+                self._status_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+            if hasattr(self, '_title_lbl'):
+                self._title_lbl.setText("I.N.D.R.A")
+                self._title_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+                self._sub_lbl.setText("Just A Rather Very Intelligent System")
+                self._sub_lbl.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
+            if hasattr(self, 'hud'):
+                self.hud.page().runJavaScript("if (typeof window.setTheme === 'function') window.setTheme('indra');")
+
     @pyqtSlot(str)
     def _handle_ui_cmd(self, cmd: str):
+        if cmd == "API_KEYS":
+            self.show_api_keys()
+            return
+            
         panels = {
             "sys": self._sys_panel,
             "vision": self._vision_panel,
             "log": self._right_panel,
             "title": self._title_panel,
-            "time": self._time_panel,
             "status": self._status_panel,
-            "controls": self._bottom_panel,
+            "webcam": self._webcam_panel,
+            "time": self._time_panel,
             "upload": self._upload_panel,
             "cmd": self._cmd_panel,
+            "agents": self._agents_panel,
+            "games": self._games_panel,
+            "gamedetails": self._game_detail_panel,
+            "gamedeals": self._game_deals_panel,
+            "gamingnews": self._gaming_news_panel,
+            "gaminghud": self._gaming_hud_panel,
         }
+        _agni_only = {"games", "gamedetails", "gamedeals", "gamingnews", "gaminghud"}
         if cmd in panels:
+            self._update_smart_layout(panels[cmd])
             panels[cmd].toggle()
-        elif cmd == "webcam":
-            self.toggle_webcam_panel()
         elif cmd == "all":
-            for p in panels.values():
+            # AGNI: open only gaming panels
+            if hasattr(self, '_status_lbl') and self._status_lbl.text() == "AGNI ONLINE":
+                target_panels = {k: v for k, v in panels.items() if k in _agni_only}
+            else:
+                # INDRA/VAYU: open everything except AGNI-only panels
+                target_panels = {k: v for k, v in panels.items() if k not in _agni_only}
+                
+            # Pre-calculate layout for all target panels toggling
+            for p in target_panels.values(): p.is_open = not p.is_open
+            self._update_smart_layout()
+            for p in target_panels.values(): p.is_open = not p.is_open
+            
+            for p in target_panels.values():
                 p.toggle()
         elif cmd == "remote":
-            self._open_remote()
+            self.open_remote()
+        elif cmd == "switch_vayu":
+            self._apply_theme(mode="vayu")
+        elif cmd == "switch_agni":
+            self._apply_theme(mode="agni")
+        elif cmd == "switch_indra":
+            self._apply_theme(mode="indra")
         elif cmd == "fullscreen_on":
             self.showFullScreen()
         elif cmd == "fullscreen_off":
@@ -1973,6 +3398,32 @@ class MainWindow(QMainWindow):
             self.hide()
         elif cmd == "show_from_tray":
             self.showFullScreen()
+        elif cmd == "open_atlas":
+            url_str = f"file:///{str(BASE_DIR.as_posix())}/assets/atlas.html"
+            if self.atlas_view.url().toString() != url_str:
+                self.atlas_view.load(QUrl(url_str))
+            
+            if not getattr(self, '_atlas_mode', False):
+                self.toggle_atlas_mode(True)
+            
+            # Crossfade to globe
+            self.atlas_view.page().runJavaScript("if(window.INDRA) window.INDRA.showGlobe();")
+            
+        elif cmd == "close_atlas":
+            self.toggle_atlas_mode(False)
+        elif cmd.startswith("locate_place|"):
+            _, target = cmd.split("|", 1)
+            
+            url_str = f"file:///{str(BASE_DIR.as_posix())}/assets/atlas.html"
+            if self.atlas_view.url().toString() != url_str:
+                self.atlas_view.load(QUrl(url_str))
+                
+            if not getattr(self, '_atlas_mode', False):
+                self.toggle_atlas_mode(True)
+                
+            # Crossfade to map and fly
+            js = f"if(window.INDRA) window.INDRA.flyTo('{target}');"
+            self.atlas_view.page().runJavaScript(js)
 
     def toggle_activity_log(self):
         self._right_panel.toggle()
@@ -1980,26 +3431,26 @@ class MainWindow(QMainWindow):
     def _build_status_panel(self, w: QWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(10, 10, 10, 10)
-        l = QLabel("INDRA CORE")
-        l.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
-        l.setStyleSheet(f"color: {C.PRI}; background: transparent;")
-        l.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(l)
+        self._status_lbl = QLabel("INDRA CORE")
+        self._status_lbl.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
+        self._status_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+        self._status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._status_lbl)
 
     def _build_title_panel(self, w: QWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(10, 10, 10, 10)
         lay.setSpacing(1)
-        title = QLabel("I.N.D.R.A")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setFont(QFont("Courier New", 22, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {C.PRI}; background: transparent;")
-        lay.addWidget(title)
-        sub = QLabel("Just A Rather Very Intelligent System")
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setFont(QFont("Courier New", 9))
-        sub.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
-        lay.addWidget(sub)
+        self._title_lbl = QLabel("I.N.D.R.A")
+        self._title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title_lbl.setFont(QFont("Courier New", 22, QFont.Weight.Bold))
+        self._title_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+        lay.addWidget(self._title_lbl)
+        self._sub_lbl = QLabel("Just A Rather Very Intelligent System")
+        self._sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._sub_lbl.setFont(QFont("Courier New", 9))
+        self._sub_lbl.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
+        lay.addWidget(self._sub_lbl)
 
     def _build_time_panel(self, w: QWidget):
         lay = QVBoxLayout(w)
@@ -2146,6 +3597,163 @@ class MainWindow(QMainWindow):
             self.camera_thread.change_pixmap_signal.connect(self.update_webcam_image)
             self.camera_thread.start()
 
+    def _build_agents_panel(self, w: QWidget):
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(15, 15, 15, 15)
+        lay.setSpacing(12)
+
+        header_lay = QHBoxLayout()
+        icon = QLabel("⚲")
+        icon.setStyleSheet(f"color: {C.PRI}; font-size: 18px;")
+        lbl = QLabel("NETWORK AGENTS")
+        lbl.setStyleSheet(f"color: {C.PRI}; font-size: 14px; font-weight: 800; letter-spacing: 2px;")
+        header_lay.addWidget(icon)
+        header_lay.addWidget(lbl)
+        header_lay.addStretch()
+        lay.addLayout(header_lay)
+
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
+        line.setFixedHeight(1)
+        lay.addWidget(line)
+
+        def make_agent_row(name, color, is_active=True):
+            row = QFrame()
+            row.setStyleSheet(f"""
+                QFrame {{
+                    background: rgba(10, 10, 15, 0.6);
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                    border-radius: 6px;
+                }}
+                QFrame:hover {{
+                    border: 1px solid {color};
+                    background: rgba(255, 255, 255, 0.05);
+                }}
+            """)
+            rlay = QHBoxLayout(row)
+            rlay.setContentsMargins(12, 10, 12, 10)
+            rlay.setSpacing(10)
+            
+            dot = QLabel("●")
+            dot_color = "#4ade80" if is_active else "#94a3b8"
+            dot.setStyleSheet(f"color: {dot_color}; font-size: 14px; background: transparent; border: none;")
+            
+            name_lbl = QLabel(name)
+            name_lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 14px; background: transparent; border: none;")
+            
+            status_lbl = QLabel("ONLINE" if is_active else "STANDBY")
+            status_lbl.setStyleSheet(f"color: {dot_color}; font-size: 10px; font-weight: bold; font-family: monospace; background: transparent; border: none;")
+            
+            rlay.addWidget(dot)
+            rlay.addWidget(name_lbl)
+            rlay.addStretch()
+            rlay.addWidget(status_lbl)
+            return row
+
+        lay.addWidget(make_agent_row("INDRA", C.PRI, True))
+        lay.addWidget(make_agent_row("VAYU", "#38bdf8", True))
+        lay.addWidget(make_agent_row("AGNI", "#f43f5e", True))
+        
+        lay.addStretch()
+
+    def _sync_widget_bounds(self):
+        if not hasattr(self, 'hud'): return
+        import json
+        bounds = []
+        ignored = getattr(self, '_ignored_smart', None)
+        if ignored is None:
+            ignored = getattr(self, '_status_panel', None)
+            if ignored is not None:
+                ignored = [self._status_panel, self._time_panel, self._title_panel, self._bottom_panel, self._cmd_panel]
+                self._ignored_smart = ignored
+            else:
+                ignored = []
+                
+        for w in self.findChildren(FloatWidget):
+            if w in ignored: continue
+            if w.is_open or w.anim_group.state() == QParallelAnimationGroup.State.Running:
+                op = w.opacity_effect.opacity()
+                if op > 0.05:
+                    bounds.append({"x": w.x(), "y": w.y(), "w": w._w, "h": w._h, "op": op})
+        
+        bounds_json = json.dumps(bounds)
+        if getattr(self, '_last_bounds_json', None) == bounds_json:
+            return
+        self._last_bounds_json = bounds_json
+            
+        js = f"if(typeof window.updateWidgetBounds === 'function') window.updateWidgetBounds({bounds_json});"
+        self.hud.page().runJavaScript(js)
+
+    def _update_smart_layout(self, toggling_widget=None):
+        pw = self.width()
+        ph = self.height()
+        margin = 25
+        spacing = 40
+
+        # Ignore fixed header/footer panels from dynamic layout
+        ignored = getattr(self, '_ignored_smart', None)
+        if ignored is None:
+            # AGNI panels are fixed dashboard widgets, ignore them from smart auto-stacking
+            ignored = [
+                self._status_panel, self._time_panel, self._title_panel, 
+                self._bottom_panel, self._cmd_panel,
+                getattr(self, '_gaming_hud_panel', None),
+                getattr(self, '_game_deals_panel', None),
+                getattr(self, '_gaming_news_panel', None),
+                getattr(self, '_games_panel', None),
+                getattr(self, '_game_detail_panel', None)
+            ]
+            self._ignored_smart = ignored
+
+        future_open = []
+        for w in self.findChildren(FloatWidget):
+            if w in ignored: continue
+            
+            will_be_open = w.is_open
+            if w == toggling_widget:
+                will_be_open = not w.is_open
+            if will_be_open:
+                future_open.append(w)
+
+        left_widgets = [w for w in future_open if w.x_anchor < 0.3]
+        center_widgets = [w for w in future_open if 0.3 <= w.x_anchor <= 0.7]
+        right_widgets = [w for w in future_open if w.x_anchor > 0.7]
+
+        def layout_group(group, side_x_anchor):
+            if not group: return
+            group.sort(key=lambda w: w.y_anchor)
+            total_h = sum(w._h for w in group)
+            available_h = ph - 2 * margin
+            
+            # If total height exceeds available height, pack tightly
+            if total_h >= available_h:
+                gap = 10
+                start_y = margin
+            else:
+                # Evenly distribute the remaining space
+                gap = (available_h - total_h) / (len(group) + 1)
+                start_y = margin + gap
+            
+            current_y = start_y
+            for w in group:
+                if side_x_anchor == 0: target_x = margin
+                elif side_x_anchor == 1: target_x = pw - w._w - margin
+                else: target_x = pw * side_x_anchor - w._w / 2
+                
+                w.smart_x = target_x
+                w.smart_y = current_y
+                current_y += w._h + gap
+
+        layout_group(left_widgets, 0)
+        layout_group(center_widgets, 0.5)
+        layout_group(right_widgets, 1)
+
+        # Trigger slide for widgets that are ALREADY open (excluding the one being toggled)
+        for w in future_open:
+            if w != toggling_widget and w.is_open:
+                w.slide_to_smart_pos(pw, ph)
+
     def _build_log_only(self, w: QWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
@@ -2245,8 +3853,11 @@ class MainWindow(QMainWindow):
     def notify_phone_connected(self) -> None:
         self._phone_sig.emit()
 
+    @pyqtSlot(str)
+    def open_game_details(self, game_name: str):
+        self._game_detail_panel.fetch_game(game_name)
 
-    def _open_remote(self):
+    def open_remote(self):
         if not self.on_remote_clicked:
             self._log.append_log("SYS: Dashboard not running — remote unavailable.")
             return
@@ -2274,6 +3885,7 @@ class MainWindow(QMainWindow):
         )
         ov.closed.connect(lambda: setattr(self, "_remote_overlay", None))
         ov.show()
+        ov.raise_()  # Force to the top of the Z-order so the orb doesn't clip through!
         self._remote_overlay = ov
         self._log.append_log(f"SYS: Remote key generated — manual: {manual or url}")
 
@@ -2327,36 +3939,100 @@ class MainWindow(QMainWindow):
             return False
         try:
             d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            return bool(d.get("gemini_api_key")) and bool(d.get("os_system"))
+            return bool(d.get("gemini_api_key")) and validate_license_key(d.get("license_key", ""))
         except Exception:
             return False
 
     def _show_setup(self):
         ov = SetupOverlay(self.centralWidget())
         cw = self.centralWidget()
-        ow, oh = 460, 390
-        ov.setGeometry(
-            (cw.width() - ow) // 2,
-            (cw.height() - oh) // 2,
-            ow,
-            oh,
-        )
+        ov.setGeometry(0, 0, cw.width(), cw.height())
         ov.done.connect(self._on_setup_done)
         ov.show()
+        ov.raise_()
         self._overlay = ov
 
-    def _on_setup_done(self, key: str, os_name: str):
+    def _enable_autostart(self):
+        if platform.system() == "Windows":
+            try:
+                exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+                winreg.SetValueEx(key, "INDRA_AI", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.CloseKey(key)
+                self._log.append_log("SYS: Auto-start enabled in Windows Registry.")
+            except Exception as e:
+                self._log.append_log(f"SYS: Auto-start failed: {e}")
+
+    def _on_setup_done(self, key: str, license_key: str):
         os.makedirs(CONFIG_DIR, exist_ok=True)
         API_FILE.write_text(
-            json.dumps({"gemini_api_key": key, "os_system": os_name}, indent=4),
+            json.dumps({"gemini_api_key": key, "license_key": license_key}, indent=4),
             encoding="utf-8",
         )
         self._ready = True
+        self._enable_autostart()
+        
         if self._overlay:
             self._overlay.hide()
+            self._overlay.deleteLater()
             self._overlay = None
+            
+        cw = self.centralWidget()
+        self.hud.hide() # Keep web engine hidden while BootOverlay plays
+        self.boot_overlay = BootOverlay(cw, on_complete=self.hud.show)
+        self.boot_overlay.resize(cw.width(), cw.height())
+        self.boot_overlay.raise_()
+        self.boot_overlay.show()
+
         self._apply_state("LISTENING")
-        self._log.append_log(f"SYS: Initialised. OS={os_name.upper()}. INDRA online.")
+        self._log.append_log(f"SYS: Initialised. OS={platform.system().upper()}. INDRA online.")
+
+    def show_api_keys(self):
+        if not hasattr(self, '_api_keys_overlay') or self._api_keys_overlay is None:
+            ov = ApiKeysOverlay(self.centralWidget())
+            
+            # Load existing keys
+            try:
+                with open(API_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            ov.populate(data)
+            
+            ov.closed.connect(self._close_api_keys)
+            ov.saved.connect(self._save_api_keys)
+            self._api_keys_overlay = ov
+
+        cw = self.centralWidget()
+        ow, oh = 540, 520
+        self._api_keys_overlay.setGeometry(
+            cw.width() - ow - 30,
+            30,
+            ow,
+            oh,
+        )
+        self._api_keys_overlay.show()
+        self._api_keys_overlay.raise_()
+
+    def _close_api_keys(self):
+        if hasattr(self, '_api_keys_overlay') and self._api_keys_overlay:
+            self._api_keys_overlay.hide()
+
+    def _save_api_keys(self, new_data: dict):
+        try:
+            with open(API_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+            
+        for k, v in new_data.items():
+            if v:  # Only update if a value was actually entered
+                data[k] = v
+                
+        with open(API_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        
+        self._log.append_log("SYS: Optional API keys updated in vault.")
 
 
 class _RootShim:
@@ -2446,6 +4122,9 @@ class INDRAUI:
     def toggle_webcam_panel(self):
         self._safe_cmd("webcam")
 
+    def toggle_agents_panel(self):
+        self._safe_cmd("agents")
+
     @property
     def latest_webcam_frame(self) -> bytes | None:
         return getattr(self._win, "_latest_webcam_frame", None)
@@ -2480,11 +4159,23 @@ class INDRAUI:
     def set_fullscreen(self, enabled: bool):
         self._win._ui_cmd_sig.emit("fullscreen_on" if enabled else "fullscreen_off")
 
-    def set_state(self, state: str):
-        self._win._state_sig.emit(state)
+    def set_state(self, state: str):    
+        try:
+            self._win._state_sig.emit(state)
+        except RuntimeError:
+            pass
 
     def write_log(self, text: str):
-        self._win._log_sig.emit(text)
+        try:
+            self._win._log_sig.emit(text)
+        except RuntimeError:
+            pass
+
+    def trigger_ui_cmd(self, cmd: str):
+        try:
+            self._win._ui_cmd_sig.emit(cmd)
+        except RuntimeError:
+            pass
 
     def wait_for_api_key(self):
         while not self._win._ready:

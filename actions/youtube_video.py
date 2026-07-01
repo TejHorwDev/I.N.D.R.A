@@ -1,6 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
-# youtube_video.py → Enhanced YouTube controller for INDRA
+                     
+
 import json
 import re
 import shutil
@@ -12,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote_plus
 
-import numpy as np  # kept for backward compatibility (not used directly)
+import numpy as np                                                       
 import pyautogui
 
 try:
@@ -29,15 +28,12 @@ try:
 except ImportError:
     _TRANSCRIPT_OK = False
 
-# ----- external config helpers (unchanged) -----
 from config import get_os, is_linux, is_mac, is_windows
-
 
 def _get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 BASE_DIR = _get_base_dir()
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
@@ -51,17 +47,14 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-_YT_VIDEO_FILTER = "EgIQAQ%3D%3D"  # filter for non‑Shorts videos
-
+_YT_VIDEO_FILTER = "EgIQAQ%3D%3D"                                
 
 def _get_api_key() -> str:
     with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)["gemini_api_key"]
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  URL helpers
-# ----------------------------------------------------------------------
 def _open_url(url: str) -> None:
     try:
         if is_mac():
@@ -73,17 +66,14 @@ def _open_url(url: str) -> None:
     except Exception as e:
         print(f"[YouTube] ⚠️ open_url failed: {e}")
 
-
 def _extract_video_id(url: str) -> Optional[str]:
     match = re.search(
         r"(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})", url
     )
     return match.group(1) if match else None
 
-
 def _is_valid_youtube_url(url: str) -> bool:
     return bool(re.search(r"(youtube\.com|youtu\.be)", url or ""))
-
 
 def _ask_for_url(prompt_text: str = "YouTube video URL:") -> Optional[str]:
     try:
@@ -101,10 +91,8 @@ def _ask_for_url(prompt_text: str = "YouTube video URL:") -> Optional[str]:
         print(f"[YouTube] ⚠️ URL dialog failed: {e}")
         return None
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Scrapers (original + new search list)
-# ----------------------------------------------------------------------
 def _scrape_first_video_url(query: str) -> Optional[str]:
     """Return the URL of the first non‑Shorts video for a query."""
     if not _REQUESTS_OK:
@@ -130,7 +118,6 @@ def _scrape_first_video_url(query: str) -> Optional[str]:
         print(f"[YouTube] ⚠️ scrape_first_video_url failed: {e}")
     return None
 
-
 def _scrape_search_results(query: str, max_results: int = 5) -> list[dict]:
     """Return a list of dicts with title, url, channel, views, duration for top results."""
     if not _REQUESTS_OK:
@@ -147,17 +134,14 @@ def _scrape_search_results(query: str, max_results: int = 5) -> list[dict]:
         print(f"[YouTube] ⚠️ search results fetch failed: {e}")
         return []
 
-    # Helper to extract data from a single video entry
     results = []
-    # We'll look for video entries: each appears inside a script tag with JSON data.
-    # A simpler approach: find all video IDs, then for each extract title and channel
-    # using the same regex patterns, but we need to associate title with ID.
-    # We'll use the following: after each "videoId", there's a "title" block shortly after.
+
+                                                                            
+                                                                                           
     video_ids = re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', html)
     titles = re.findall(r'"title":\{"runs":\[\{"text":"([^"]+)"', html)
-    # Unfortunately, titles may not be in order; we'll do a basic iteration that pairs them.
-    # A more robust approach: find all occurrences of the video renderer JSON block
-    # and parse with regex. This works in practice.
+
+                                                   
     pattern = (
         r'"videoId":"(?P<id>[A-Za-z0-9_-]{11})".*?'
         r'"title":\{"runs":\[\{"text":"(?P<title>[^"]+)"'
@@ -170,14 +154,14 @@ def _scrape_search_results(query: str, max_results: int = 5) -> list[dict]:
             continue
         seen_ids.add(vid)
         title = m.group("title")
-        # Get channel name from the same block
+                                              
         channel_m = re.search(
             rf'"videoId":"{vid}".*?' r'"ownerText":\{"runs":\[\{"text":"([^"]+)"',
             html,
             re.DOTALL,
         )
         channel = channel_m.group(1) if channel_m else "Unknown"
-        # Views
+               
         views_m = re.search(
             rf'"videoId":"{vid}".*?'
             r'"shortViewCountText":\{"runs":\[\{"text":"([^"]+)"',
@@ -189,7 +173,7 @@ def _scrape_search_results(query: str, max_results: int = 5) -> list[dict]:
             re.DOTALL,
         )
         views = views_m.group(1) if views_m else "?"
-        # Duration
+                  
         dur_m = re.search(
             rf'"videoId":"{vid}".*?' r'"lengthText":\{"simpleText":"([^"]+)"',
             html,
@@ -212,7 +196,6 @@ def _scrape_search_results(query: str, max_results: int = 5) -> list[dict]:
         if len(results) >= max_results:
             break
     return results
-
 
 def _scrape_video_info(video_id: str) -> dict:
     """Return dict of title, channel, views, duration, likes for a video."""
@@ -245,7 +228,6 @@ def _scrape_video_info(video_id: str) -> dict:
         print(f"[YouTube] ⚠️ Info scrape failed: {e}")
         return {}
 
-
 def _scrape_trending(region: str = "TR", max_results: int = 8) -> list[dict]:
     if not _REQUESTS_OK:
         return []
@@ -272,10 +254,8 @@ def _scrape_trending(region: str = "TR", max_results: int = 8) -> list[dict]:
         print(f"[YouTube] ⚠️ Trending scrape failed: {e}")
         return []
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Transcript helpers
-# ----------------------------------------------------------------------
 def _get_transcript(video_id: str) -> Optional[str]:
     if not _TRANSCRIPT_OK:
         return None
@@ -315,7 +295,6 @@ def _get_transcript(video_id: str) -> Optional[str]:
         print(f"[YouTube] ⚠️ Transcript fetch failed: {e}")
         return None
 
-
 def _summarize_with_gemini(transcript: str, video_url: str) -> str:
     import google.generativeai as genai
 
@@ -337,7 +316,6 @@ def _summarize_with_gemini(transcript: str, video_url: str) -> str:
     )
     return response.text.strip()
 
-
 def _save_text(content: str, prefix: str) -> str:
     """Save content to Desktop with a timestamped filename."""
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -346,7 +324,7 @@ def _save_text(content: str, prefix: str) -> str:
     desktop.mkdir(parents=True, exist_ok=True)
     filepath = desktop / filename
     filepath.write_text(content, encoding="utf-8")
-    # Open in default text editor
+                                 
     try:
         if is_windows():
             subprocess.Popen(["notepad.exe", str(filepath)])
@@ -357,7 +335,6 @@ def _save_text(content: str, prefix: str) -> str:
     except Exception as e:
         print(f"[YouTube] ⚠️ Could not open text editor: {e}")
     return str(filepath)
-
 
 def _save_summary(content: str, video_url: str) -> str:
     header = (
@@ -370,10 +347,8 @@ def _save_summary(content: str, video_url: str) -> str:
     full = header + content
     return _save_text(full, "youtube_summary")
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Download helper (using yt-dlp if available)
-# ----------------------------------------------------------------------
 def _download_video(
     video_url: str,
     format_type: str = "video",
@@ -392,7 +367,6 @@ def _download_video(
         out = Path.home() / "Desktop"
     out.mkdir(parents=True, exist_ok=True)
 
-    # Common arguments
     cmd = [ytdlp, video_url, "-o", str(out / "%(title)s.%(ext)s")]
     if format_type == "audio":
         cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
@@ -405,7 +379,7 @@ def _download_video(
         else:
             cmd += ["-f", "bestvideo+bestaudio/best"]
     try:
-        # run and capture output (but it may be long); we'll just return success message
+                                                                                        
         subprocess.run(
             cmd,
             check=True,
@@ -422,10 +396,8 @@ def _download_video(
     except Exception as e:
         return f"Download error: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Action handlers (original plus new)
-# ----------------------------------------------------------------------
 def _handle_play(parameters: dict, player) -> str:
     """Play a video: if url given, open directly; else search and play top result."""
     url = parameters.get("url", "").strip()
@@ -454,14 +426,12 @@ def _handle_play(parameters: dict, player) -> str:
     _open_url(fallback)
     return f"Opened YouTube search for: {query} (manual selection required)"
 
-
 def _handle_play_url(parameters: dict, player) -> str:
     """Direct open URL (alias for play with url)."""
     url = parameters.get("url", "").strip()
     if not url:
         return "Please provide a YouTube URL."
     return _handle_play({"url": url}, player)
-
 
 def _handle_search(parameters: dict, player, speak) -> str:
     query = parameters.get("query", "").strip()
@@ -480,18 +450,16 @@ def _handle_search(parameters: dict, player, speak) -> str:
         lines.append(f"   URL: {r['url']}")
     return "\n".join(lines)
 
-
 def _handle_download(parameters: dict, player, speak) -> str:
     url = parameters.get("url", "").strip()
     if not url:
         url = _ask_for_url("Please paste the YouTube video URL:")
     if not url or not _is_valid_youtube_url(url):
         return "Please provide a valid YouTube URL."
-    fmt = parameters.get("format", "video").lower()  # video or audio
+    fmt = parameters.get("format", "video").lower()                  
     quality = parameters.get("quality", "best").lower()
     output = parameters.get("output_dir")
     return _download_video(url, fmt, quality, output)
-
 
 def _handle_transcript(parameters: dict, player, speak) -> str:
     if not _TRANSCRIPT_OK:
@@ -514,9 +482,8 @@ def _handle_transcript(parameters: dict, player, speak) -> str:
         saved_path = _save_text(transcript, "youtube_transcript")
         return f"Transcript saved to: {saved_path}"
     else:
-        # return truncated transcript
-        return transcript[:5000]  # first 5000 chars
-
+                                     
+        return transcript[:5000]                    
 
 def _handle_summarize(parameters: dict, player, speak) -> str:
     if not _TRANSCRIPT_OK:
@@ -558,7 +525,6 @@ def _handle_summarize(parameters: dict, player, speak) -> str:
 
     return summary
 
-
 def _handle_get_info(parameters: dict, player, speak) -> str:
     url = parameters.get("url", "").strip()
     if not url:
@@ -589,7 +555,6 @@ def _handle_get_info(parameters: dict, player, speak) -> str:
 
     return result
 
-
 def _handle_trending(parameters: dict, player, speak) -> str:
     region = parameters.get("region", "TR").upper()
     if player:
@@ -612,22 +577,19 @@ def _handle_trending(parameters: dict, player, speak) -> str:
 
     return result
 
+                                                                        
 
-# ----------------------------------------------------------------------
-#  Action dispatch table (new actions merged)
-# ----------------------------------------------------------------------
 _ACTION_MAP = {
     "play": _handle_play,
-    "play_url": _handle_play_url,  # NEW
-    "search": _handle_search,  # NEW
-    "download": _handle_download,  # NEW
-    "transcript": _handle_transcript,  # NEW
+    "play_url": _handle_play_url,       
+    "search": _handle_search,       
+    "download": _handle_download,       
+    "transcript": _handle_transcript,       
     "summarize": _handle_summarize,
     "get_info": _handle_get_info,
-    "video_info": _handle_get_info,  # friendly alias
+    "video_info": _handle_get_info,                  
     "trending": _handle_trending,
 }
-
 
 def youtube_video(
     parameters: dict = None,
@@ -664,7 +626,7 @@ def youtube_video(
         return f"Unknown YouTube action: '{action}'. Available: {valid}"
 
     try:
-        # Some handlers need (params, player, speak)
+                                                    
         if action in ("play", "play_url"):
             return handler(params, player) or "Done."
         else:

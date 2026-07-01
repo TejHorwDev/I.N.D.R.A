@@ -13,7 +13,7 @@ def email_agent(parameters: dict, response=None, player=None, session_memory=Non
         return "You must provide an email body."
         
     try:
-        # Construct the mailto link
+                                   
         query_params = {}
         if subject:
             query_params['subject'] = subject

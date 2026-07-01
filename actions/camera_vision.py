@@ -10,12 +10,11 @@ def camera_vision(parameters: dict, response=None, player=None, session_memory=N
     
     if action == "capture":
         try:
-            # Open default camera
+                                 
             cap = cv2.VideoCapture(0)
             if not cap.isOpened():
                 return "Failed to access the webcam. It might be in use or disabled."
-                
-            # Allow camera sensor to adjust to light
+
             for _ in range(5):
                 cap.read()
                 
@@ -27,9 +26,8 @@ def camera_vision(parameters: dict, response=None, player=None, session_memory=N
                 
             save_path = Path.home() / "Desktop" / "INDRA_webcam_capture.jpg"
             cv2.imwrite(str(save_path), frame)
-            
-            # Here we just tell INDRA the image is saved.
-            # Because Gemini Vision is natively supported if we provide the file path.
+
+                                                                                      
             return f"Webcam photo captured and saved to: {save_path}\nYou can now use your built-in image analysis tools on it!"
         except Exception as e:
             return f"Error during webcam capture: {e}"

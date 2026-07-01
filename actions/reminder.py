@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 reminder.py – INDRA Cross‑Platform Reminder Engine
 ====================================================
@@ -34,12 +34,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-# ----------------------------------------------------------------------
-# Optional imports (lazy)
-# ----------------------------------------------------------------------
+                         
+                                                                        
 _DATEPARSER = None
 _GEMINI = None
-
 
 def _import_dateparser():
     global _DATEPARSER
@@ -52,7 +50,6 @@ def _import_dateparser():
             _DATEPARSER = False
     return _DATEPARSER
 
-
 def _import_gemini():
     global _GEMINI
     if _GEMINI is None:
@@ -64,16 +61,13 @@ def _import_gemini():
             _GEMINI = False
     return _GEMINI
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Path helpers (cached)
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
-
 
 @lru_cache(maxsize=1)
 def _get_os() -> str:
@@ -84,14 +78,13 @@ def _get_os() -> str:
         )
         return cfg.get("os_system", "windows").lower()
     except Exception:
-        # fallback to platform
+                              
         import platform
 
         plat = platform.system().lower()
         if plat == "darwin":
             return "mac"
-        return plat  # 'windows' or 'linux'
-
+        return plat                        
 
 @lru_cache(maxsize=1)
 def _scripts_dir() -> Path:
@@ -99,10 +92,8 @@ def _scripts_dir() -> Path:
     d.mkdir(parents=True, exist_ok=True)
     return d
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Sanitise message for command‑line safety
-# ----------------------------------------------------------------------
 def _sanitise(text: str, max_len: int = 200) -> str:
     return (
         text.replace("\\", "")
@@ -113,10 +104,8 @@ def _sanitise(text: str, max_len: int = 200) -> str:
         .strip()
     )[:max_len]
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Date/Time parsing (multi‑strategy)
-# ----------------------------------------------------------------------
 def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
     """
     Convert user‑provided date and time strings into an absolute datetime.
@@ -127,7 +116,7 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
       - AI fallback using Gemini
     Returns None if parsing fails.
     """
-    # Exact format
+                  
     try:
         return datetime.strptime(
             f"{date_raw.strip()} {time_raw.strip()}", "%Y-%m-%d %H:%M"
@@ -135,7 +124,6 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
     except ValueError:
         pass
 
-    # Try dateparser with combined string
     combined = f"{date_raw} {time_raw}".strip()
     dateparser_mod = _import_dateparser()
     if dateparser_mod:
@@ -145,11 +133,10 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
         if parsed:
             return parsed
 
-    # Relative keywords (today, tomorrow, in ...)
     now = datetime.now()
     lower = combined.lower()
     if "today" in lower or "bugün" in lower:
-        # extract time from time_raw
+                                    
         time_part = _extract_time(time_raw) or now.replace(second=0, microsecond=0)
         return now.replace(
             hour=time_part.hour, minute=time_part.minute, second=0, microsecond=0
@@ -160,7 +147,7 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
         return tomorrow.replace(
             hour=time_part.hour, minute=time_part.minute, second=0, microsecond=0
         )
-    # "in X hours/minutes"
+                          
     match = re.match(r"in\s+(\d+)\s*(hour|minute|min)s?", lower)
     if match:
         n = int(match.group(1))
@@ -168,7 +155,6 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
         delta = timedelta(hours=n) if unit.startswith("hour") else timedelta(minutes=n)
         return now + delta
 
-    # AI fallback
     genai = _import_gemini()
     if genai:
         try:
@@ -182,7 +168,7 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
                 ),
             )
             result = response.text.strip()
-            # Extract YYYY-MM-DD HH:MM
+                                      
             dt_match = re.search(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})", result)
             if dt_match:
                 return datetime.strptime(dt_match.group(1), "%Y-%m-%d %H:%M")
@@ -190,7 +176,6 @@ def _parse_datetime(date_raw: str, time_raw: str) -> Optional[datetime]:
             pass
 
     return None
-
 
 def _extract_time(time_str: str) -> Optional[datetime]:
     """Parse a standalone time string (e.g., 3pm, 15:00) into a dummy datetime."""
@@ -203,10 +188,8 @@ def _extract_time(time_str: str) -> Optional[datetime]:
             continue
     return None
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# API key (cached)
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _get_api_key() -> str:
     try:
@@ -216,10 +199,8 @@ def _get_api_key() -> str:
     except Exception:
         return ""
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Notification script generator (unchanged logic, slightly optimised)
-# ----------------------------------------------------------------------
 def _write_notify_script(task_name: str, message: str, os_name: str) -> Path:
     script_path = _scripts_dir() / f"{task_name}.py"
     msg_literal = json.dumps(message)
@@ -274,7 +255,7 @@ if not notified:
     except Exception:
         pass
 """
-    else:  # linux
+    else:         
         notify_block = f"""
 message = {msg_literal}
 notified = False
@@ -306,10 +287,8 @@ except Exception:
     script_path.chmod(0o600)
     return script_path
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Scheduling wrappers
-# ----------------------------------------------------------------------
 def _schedule_windows(
     target_dt: datetime, task_name: str, script_path: Path, message: str
 ) -> str:
@@ -365,12 +344,11 @@ def _schedule_windows(
         print(f"[Reminder] ❌ schtasks: {err}")
         return ""
 
-    # Verify task exists
     verify = subprocess.run(
         ["schtasks", "/Query", "/TN", task_name], capture_output=True, text=True
     )
     if verify.returncode != 0:
-        # Try to delete half-created task
+                                         
         subprocess.run(
             ["schtasks", "/Delete", "/TN", task_name, "/F"], capture_output=True
         )
@@ -378,7 +356,6 @@ def _schedule_windows(
         return ""
 
     return task_name
-
 
 def _schedule_mac(target_dt: datetime, task_name: str, script_path: Path) -> str:
     agents_dir = Path.home() / "Library" / "LaunchAgents"
@@ -425,15 +402,13 @@ def _schedule_mac(target_dt: datetime, task_name: str, script_path: Path) -> str
         print(f"[Reminder] ❌ launchctl: {result.stderr.strip()}")
         return ""
 
-    # Verify the plist still exists (loaded successfully)
     if not plist_path.exists():
         return ""
 
     return label
 
-
 def _schedule_linux(target_dt: datetime, task_name: str, script_path: Path) -> str:
-    # Prefer systemd-run
+                        
     if shutil.which("systemd-run"):
         on_calendar = target_dt.strftime("%Y-%m-%d %H:%M:00")
         result = subprocess.run(
@@ -450,21 +425,20 @@ def _schedule_linux(target_dt: datetime, task_name: str, script_path: Path) -> s
             text=True,
         )
         if result.returncode == 0:
-            # Verify unit exists
+                                
             check = subprocess.run(
                 ["systemctl", "--user", "is-active", task_name], capture_output=True
             )
             if (
                 check.returncode == 0 or check.returncode == 3
-            ):  # 3 = inactive (scheduled)
+            ):                            
                 return task_name
         else:
             print(f"[Reminder] ⚠️ systemd-run failed: {result.stderr.strip()}")
-            # try 'at' fallback
+                               
     else:
         print("[Reminder] ⚠️ systemd-run not found, using 'at'")
 
-    # Fallback to 'at'
     if shutil.which("at"):
         at_time = target_dt.strftime("%H:%M %Y-%m-%d")
         cmd_str = f"{sys.executable} {script_path}\n"
@@ -472,7 +446,7 @@ def _schedule_linux(target_dt: datetime, task_name: str, script_path: Path) -> s
             ["at", at_time], input=cmd_str, capture_output=True, text=True
         )
         if result.returncode == 0:
-            # Verify the job is queued
+                                      
             verify = subprocess.run(["atq"], capture_output=True, text=True)
             if task_name in verify.stdout or script_path.name in verify.stdout:
                 return task_name
@@ -482,10 +456,8 @@ def _schedule_linux(target_dt: datetime, task_name: str, script_path: Path) -> s
         print("[Reminder] ❌ Neither systemd-run nor at found.")
     return ""
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# List / Cancel / Clear (cross‑platform)
-# ----------------------------------------------------------------------
 def _list_reminders_windows() -> str:
     result = subprocess.run(
         ["schtasks", "/Query", "/FO", "LIST", "/V"], capture_output=True, text=True
@@ -511,7 +483,6 @@ def _list_reminders_windows() -> str:
         out.append(f"  {name} → {trigger}")
     return "\n".join(out)
 
-
 def _cancel_reminder_windows(task_name: str) -> str:
     result = subprocess.run(
         ["schtasks", "/Delete", "/TN", task_name, "/F"], capture_output=True, text=True
@@ -519,7 +490,6 @@ def _cancel_reminder_windows(task_name: str) -> str:
     if result.returncode == 0:
         return f"Reminder {task_name} cancelled."
     return f"Could not cancel: {result.stderr.strip() or result.stdout.strip()}"
-
 
 def _list_reminders_mac() -> str:
     agents_dir = Path.home() / "Library" / "LaunchAgents"
@@ -531,7 +501,6 @@ def _list_reminders_mac() -> str:
         lines.append(f"  {p.stem} → (launchd job)")
     return "\n".join(lines)
 
-
 def _cancel_reminder_mac(label: str) -> str:
     result = subprocess.run(
         ["launchctl", "remove", label], capture_output=True, text=True
@@ -542,9 +511,8 @@ def _cancel_reminder_mac(label: str) -> str:
         return f"Reminder {label} cancelled."
     return f"Could not cancel: {result.stderr.strip() or result.stdout.strip()}"
 
-
 def _list_reminders_linux() -> str:
-    # Check systemd timers
+                          
     if shutil.which("systemctl"):
         result = subprocess.run(
             ["systemctl", "--user", "list-unit-files", "--type=timer"],
@@ -559,16 +527,15 @@ def _list_reminders_linux() -> str:
                     timers.append(parts[0])
         if timers:
             return "Active reminders (systemd timers):\n  " + "\n  ".join(timers)
-    # Check at jobs
+                   
     if shutil.which("atq"):
         result = subprocess.run(["atq"], capture_output=True, text=True)
         if result.stdout.strip():
             return "Active reminders (at jobs):\n" + result.stdout.strip()
     return "No active reminders found."
 
-
 def _cancel_reminder_linux(task_name: str) -> str:
-    # Try systemd first
+                       
     if shutil.which("systemctl"):
         result = subprocess.run(
             ["systemctl", "--user", "stop", task_name], capture_output=True, text=True
@@ -578,12 +545,11 @@ def _cancel_reminder_linux(task_name: str) -> str:
         )
         if result.returncode == 0:
             return f"Reminder {task_name} cancelled (systemd)."
-    # Try atrm by job number (need to parse atq)
+                                                
     if shutil.which("atq") and shutil.which("atrm"):
-        # brute force: cancel all? No, we need task_name identification.
+                                                                        
         pass
     return "Could not cancel reminder on Linux (manual removal needed)."
-
 
 def _clear_all_reminders(os_name: str) -> str:
     if os_name == "windows":
@@ -605,7 +571,7 @@ def _clear_all_reminders(os_name: str) -> str:
             plist.unlink(missing_ok=True)
         return "All reminders cleared."
     else:
-        # Linux: brute force remove our systemd units
+                                                     
         if shutil.which("systemctl"):
             units = subprocess.run(
                 ["systemctl", "--user", "list-unit-files", "--type=timer"],
@@ -621,13 +587,11 @@ def _clear_all_reminders(os_name: str) -> str:
                     subprocess.run(
                         ["systemctl", "--user", "disable", unit], capture_output=True
                     )
-        # Remove at jobs? Not easily doable without parsing.
+                                                            
         return "Linux reminders cleared (systemd timers removed)."
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Main controller
-# ----------------------------------------------------------------------
 def reminder(
     parameters: dict,
     response=None,
@@ -648,7 +612,6 @@ def reminder(
     action = params.get("action", "set").strip().lower()
     os_name = _get_os()
 
-    # ── Action: list ──
     if action == "list":
         if os_name == "windows":
             return _list_reminders_windows()
@@ -657,7 +620,6 @@ def reminder(
         else:
             return _list_reminders_linux()
 
-    # ── Action: cancel ──
     if action == "cancel":
         task_name = params.get("task_name", "").strip()
         if not task_name:
@@ -669,11 +631,9 @@ def reminder(
         else:
             return _cancel_reminder_linux(task_name)
 
-    # ── Action: clear ──
     if action == "clear":
         return _clear_all_reminders(os_name)
 
-    # ── Default action: set ──
     date_str = params.get("date", "").strip()
     time_str = params.get("time", "").strip()
     message = params.get("message", "Reminder").strip()
@@ -681,7 +641,6 @@ def reminder(
     if not date_str or not time_str:
         return "I need both a date and a time to set a reminder."
 
-    # Robust parsing
     target_dt = _parse_datetime(date_str, time_str)
     if target_dt is None:
         return "I couldn't understand that date or time. Please use a format like '2025-06-01 14:30' or 'tomorrow at 3pm'."
@@ -697,7 +656,6 @@ def reminder(
     except Exception as e:
         return f"Could not prepare the reminder script: {e}"
 
-    # Schedule with platform‑specific handler
     try:
         if os_name == "windows":
             job_id = _schedule_windows(target_dt, task_name, script_path, safe_msg)

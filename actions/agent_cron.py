@@ -22,7 +22,7 @@ def agent_cron(parameters: dict, player=None, on_text_command=None) -> str:
         while True:
             time.sleep(delay_seconds)
             if on_text_command:
-                # Add a silent prefix so the AI knows it's an auto-task
+                                                                       
                 on_text_command(f"[CRON AUTOTASK] {task}")
             else:
                 print(f"[CRON] Failed to execute {task} - no callback")

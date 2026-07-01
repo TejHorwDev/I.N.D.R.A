@@ -64,7 +64,7 @@ def memory_manager(parameters: dict, response=None, player=None, session_memory=
             
     elif action == "query":
         if not key:
-            # Return all keys to let INDRA know what is stored
+                                                              
             try:
                 conn = sqlite3.connect(str(DB_PATH))
                 cursor = conn.cursor()

@@ -1,5 +1,5 @@
-# pylint: disable=all
-# pylint: disable=C0114, C0115, C0116, C0103, C0301, C0302, W0611, W0718, R0902, R0903, R0904, R0911, R0912, R0913, R0914, R0915, R0801
+                     
+                                                                                                                                       
 """
 Enhanced File Manager – Safe, Fast, Cross‑Platform
 ==================================================
@@ -34,9 +34,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-# ----------------------------------------------------------------------
-# Try to import send2trash, gracefully degrade to built‑in trash
-# ----------------------------------------------------------------------
+                                                                
+                                                                        
 try:
     import send2trash
 
@@ -44,22 +43,18 @@ try:
 except ImportError:
     _SEND2TRASH = False
 
-# ----------------------------------------------------------------------
-# Platform detection
-# ----------------------------------------------------------------------
-_OS = platform.system()  # "Windows", "Darwin", "Linux"
+                    
+                                                                        
+_OS = platform.system()                                
 
-# ----------------------------------------------------------------------
-# Safe roots – operations are only allowed inside these directories
-# ----------------------------------------------------------------------
+                                                                   
+                                                                        
 _SAFE_ROOTS: List[Path] = [
     Path.home(),
 ]
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# XDG / platform‑specific directory resolvers (cached)
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _get_desktop() -> Path:
     if _OS == "Linux":
@@ -68,9 +63,8 @@ def _get_desktop() -> Path:
             p = Path(xdg)
             if p.exists():
                 return p
-    # Fallback for Windows, macOS, or missing XDG
+                                                 
     return Path.home() / "Desktop"
-
 
 @lru_cache(maxsize=1)
 def _get_downloads() -> Path:
@@ -82,7 +76,6 @@ def _get_downloads() -> Path:
                 return p
     return Path.home() / "Downloads"
 
-
 @lru_cache(maxsize=1)
 def _get_documents() -> Path:
     if _OS == "Linux":
@@ -92,7 +85,6 @@ def _get_documents() -> Path:
             if p.exists():
                 return p
     return Path.home() / "Documents"
-
 
 @lru_cache(maxsize=1)
 def _get_pictures() -> Path:
@@ -104,7 +96,6 @@ def _get_pictures() -> Path:
                 return p
     return Path.home() / "Pictures"
 
-
 @lru_cache(maxsize=1)
 def _get_music() -> Path:
     if _OS == "Linux":
@@ -114,7 +105,6 @@ def _get_music() -> Path:
             if p.exists():
                 return p
     return Path.home() / "Music"
-
 
 @lru_cache(maxsize=1)
 def _get_videos() -> Path:
@@ -126,10 +116,8 @@ def _get_videos() -> Path:
                 return p
     return Path.home() / "Videos"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Path resolution
-# ----------------------------------------------------------------------
 def _resolve_path(raw: str) -> Path:
     """
     Converts human‑friendly shortcuts (desktop, downloads, …) and
@@ -147,13 +135,11 @@ def _resolve_path(raw: str) -> Path:
     key = raw.strip().lower()
     if key in shortcuts:
         return shortcuts[key]
-    # Expand user and resolve symlinks once for safety
+                                                      
     return Path(raw).expanduser().resolve()
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Human‑readable size formatting (cached)
-# ----------------------------------------------------------------------
 @lru_cache(maxsize=1024)
 def _format_size(size_bytes: int) -> str:
     """Formats a byte count into human‑readable string (e.g., 1.5 GB)."""
@@ -165,10 +151,8 @@ def _format_size(size_bytes: int) -> str:
             return f"{size_bytes:.1f} {unit}"
     return f"{size_bytes:.1f} PB"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Safe path validation
-# ----------------------------------------------------------------------
 def _is_safe_path(target: Path) -> bool:
     """
     Checks whether *target* lies inside one of the _SAFE_ROOTS.
@@ -181,17 +165,15 @@ def _is_safe_path(target: Path) -> bool:
     for root in _SAFE_ROOTS:
         try:
             r_root = root.resolve()
-            # pathlib’s is_relative_to (Python 3.9+)
+                                                    
             if resolved == r_root or resolved.is_relative_to(r_root):
                 return True
         except (OSError, RuntimeError):
             continue
     return False
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Trash operations with fallback (FreeDesktop compliant on Linux)
-# ----------------------------------------------------------------------
 def _safe_trash(target: Path) -> str:
     """
     Moves *target* to the system Trash (send2trash) or, if not available,
@@ -205,7 +187,6 @@ def _safe_trash(target: Path) -> str:
         except Exception as e:
             return f"Trash failed (send2trash error): {e}"
 
-    # ---------- Built‑in trash for Linux / macOS ----------
     home = Path.home()
     trash_base = home / ".local/share/Trash" if _OS == "Linux" else home / ".Trash"
     files_dir = trash_base / "files"
@@ -217,7 +198,6 @@ def _safe_trash(target: Path) -> str:
     except OSError as e:
         return f"Cannot create trash directory: {e}"
 
-    # Generate unique name to avoid collisions
     dest = files_dir / target.name
     base, ext = os.path.splitext(target.name)
     counter = 1
@@ -225,7 +205,6 @@ def _safe_trash(target: Path) -> str:
         dest = files_dir / f"{base}_{counter}{ext}"
         counter += 1
 
-    # Write .trashinfo file (FreeDesktop spec)
     trashinfo_path = info_dir / f"{dest.name}.trashinfo"
     deletion_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     try:
@@ -234,7 +213,7 @@ def _safe_trash(target: Path) -> str:
             encoding="utf-8",
         )
     except OSError:
-        pass  # info file is optional
+        pass                         
 
     try:
         shutil.move(str(target), str(dest))
@@ -242,10 +221,8 @@ def _safe_trash(target: Path) -> str:
     except OSError as e:
         return f"Trash fallback failed: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Directory listing (fast scandir)
-# ----------------------------------------------------------------------
 def list_files(path: str = "desktop", show_hidden: bool = False) -> str:
     """
     Lists contents of a directory, using os.scandir for optimal speed.
@@ -269,9 +246,8 @@ def list_files(path: str = "desktop", show_hidden: bool = False) -> str:
                 elif entry.is_file(follow_symlinks=False):
                     size = _format_size(entry.stat(follow_symlinks=False).st_size)
                     items.append(f"📄 {entry.name} ({size})")
-                # ignore symlinks to avoid loops
 
-        items.sort()  # human alphabetical after gathering
+        items.sort()                                      
 
         if not items:
             return f"Directory is empty: {target.name}/"
@@ -283,10 +259,8 @@ def list_files(path: str = "desktop", show_hidden: bool = False) -> str:
     except OSError as e:
         return f"Error listing files: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# File / folder creation
-# ----------------------------------------------------------------------
 def create_file(path: str, name: str = "", content: str = "") -> str:
     """
     Creates a new text file. If *name* is omitted, *path* itself is used
@@ -299,7 +273,6 @@ def create_file(path: str, name: str = "", content: str = "") -> str:
         if not _is_safe_path(target):
             return f"Access denied: {target}"
 
-        # Prevent accidentally writing to a directory
         if target.exists() and target.is_dir():
             return f"Cannot create file: {target.name} is a directory"
 
@@ -308,7 +281,6 @@ def create_file(path: str, name: str = "", content: str = "") -> str:
         return f"File created: {target.name}"
     except OSError as e:
         return f"Could not create file: {e}"
-
 
 def create_folder(path: str, name: str = "") -> str:
     """Creates a new directory (and parents if needed)."""
@@ -329,10 +301,8 @@ def create_folder(path: str, name: str = "") -> str:
     except OSError as e:
         return f"Could not create folder: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Deletion (Trash only)
-# ----------------------------------------------------------------------
 def delete_file(path: str, name: str = "") -> str:
     """
     Moves a file/folder to Trash. Critical user folders (Desktop,
@@ -347,7 +317,6 @@ def delete_file(path: str, name: str = "") -> str:
         if not target.exists():
             return f"Not found: {target.name}"
 
-        # Protect the special user directories themselves
         protected = {
             _get_desktop(),
             _get_downloads(),
@@ -367,10 +336,8 @@ def delete_file(path: str, name: str = "") -> str:
     except OSError as e:
         return f"Could not delete: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Move with overwrite protection
-# ----------------------------------------------------------------------
 def move_file(path: str, name: str = "", destination: str = "") -> str:
     """
     Moves a file/folder. If destination is an existing directory,
@@ -389,14 +356,12 @@ def move_file(path: str, name: str = "", destination: str = "") -> str:
         if not _is_safe_path(src) or not _is_safe_path(dst):
             return f"Access denied: {src if not _is_safe_path(src) else dst}"
 
-        # If dst is an existing directory, target file inside it
         if dst.is_dir():
             dst = dst / src.name
 
-        # Check for overwrite
         if dst.exists():
             if dst.is_dir():
-                # Trying to move onto a directory that already exists
+                                                                     
                 return f"Cannot move: a directory named '{dst.name}' already exists"
             return f"Cannot move: '{dst.name}' already exists at destination"
 
@@ -407,10 +372,8 @@ def move_file(path: str, name: str = "", destination: str = "") -> str:
     except OSError as e:
         return f"Could not move: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Copy with overwrite protection
-# ----------------------------------------------------------------------
 def copy_file(path: str, name: str = "", destination: str = "") -> str:
     """
     Copies a file or folder tree. Never overwrites an existing item.
@@ -446,10 +409,8 @@ def copy_file(path: str, name: str = "", destination: str = "") -> str:
     except OSError as e:
         return f"Could not copy: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Rename
-# ----------------------------------------------------------------------
 def rename_file(path: str, name: str = "", new_name: str = "") -> str:
     """Renames a file or folder within the same parent directory."""
     try:
@@ -473,10 +434,8 @@ def rename_file(path: str, name: str = "", new_name: str = "") -> str:
     except OSError as e:
         return f"Could not rename: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Read / Write text files
-# ----------------------------------------------------------------------
 def read_file(path: str, name: str = "", max_chars: int = 4000) -> str:
     """Reads a text file (UTF-8, errors ignored). Truncates if too long."""
     try:
@@ -500,7 +459,6 @@ def read_file(path: str, name: str = "", max_chars: int = 4000) -> str:
     except OSError as e:
         return f"Could not read file: {e}"
 
-
 def write_file(
     path: str,
     name: str = "",
@@ -515,7 +473,6 @@ def write_file(
         if not _is_safe_path(target):
             return f"Access denied: {target}"
 
-        # Reject writing to a directory
         if target.exists() and target.is_dir():
             return f"Cannot write: {target.name} is a directory"
 
@@ -529,10 +486,8 @@ def write_file(
     except OSError as e:
         return f"Could not write file: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# File search (fast, non‑recursive symlink, permission‑skip)
-# ----------------------------------------------------------------------
 def find_files(
     name: str = "",
     extension: str = "",
@@ -555,17 +510,15 @@ def find_files(
         dirs_processed = 0
         max_dirs = 500
 
-        # Use os.walk with topdown=True and error handling
         for root, dirs, files in os.walk(search_path, followlinks=False):
             dirs_processed += 1
             if dirs_processed > max_dirs:
-                # Skip deeper directories, just stop descending
+                                                               
                 dirs.clear()
                 continue
 
-            # Filter hidden directories (optional) – we don't filter by default,
-            # but we can skip hidden dirs if not needed? Keeping for speed.
-            # Only check files in current root.
+                                                                           
+                                               
             for fname in files:
                 if extension and not fname.lower().endswith(extension.lower()):
                     continue
@@ -595,10 +548,8 @@ def find_files(
     except OSError as e:
         return f"Search error: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Largest files using a min‑heap (memory efficient)
-# ----------------------------------------------------------------------
 def get_largest_files(path: str = "downloads", count: int = 10) -> str:
     """
     Finds the top *count* largest files in a directory tree.
@@ -612,7 +563,7 @@ def get_largest_files(path: str = "downloads", count: int = 10) -> str:
         if not search_path.exists():
             return f"Path not found: {path}"
 
-        heap: List[Tuple[int, Path]] = []  # (size, path) for min-heap
+        heap: List[Tuple[int, Path]] = []                             
 
         for root, dirs, files in os.walk(search_path, followlinks=False):
             for fname in files:
@@ -624,13 +575,12 @@ def get_largest_files(path: str = "downloads", count: int = 10) -> str:
                 if len(heap) < count:
                     heapq.heappush(heap, (fsize, fpath))
                 else:
-                    # Keep largest: push then pop smallest
+                                                          
                     heapq.heappushpop(heap, (fsize, fpath))
 
         if not heap:
             return "No files found."
 
-        # Extract and sort descending
         largest = sorted(heap, reverse=True)
         lines = [f"Top {len(largest)} largest files in {search_path.name}/:"]
         for size, f in largest:
@@ -642,10 +592,8 @@ def get_largest_files(path: str = "downloads", count: int = 10) -> str:
     except OSError as e:
         return f"Error: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Disk usage
-# ----------------------------------------------------------------------
 def get_disk_usage(path: str = "home") -> str:
     """Shows total, used, and free space for the volume containing *path*."""
     try:
@@ -661,10 +609,8 @@ def get_disk_usage(path: str = "home") -> str:
     except OSError as e:
         return f"Could not get disk usage: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Desktop organizer (scandir + safer type detection)
-# ----------------------------------------------------------------------
 def organize_desktop() -> str:
     """
     Sorts files on the Desktop into sub‑folders by extension
@@ -723,10 +669,10 @@ def organize_desktop() -> str:
     try:
         with os.scandir(desktop) as entries:
             for entry in entries:
-                # Skip directories, hidden files, and the organizer folders themselves
+                                                                                      
                 if entry.is_dir(follow_symlinks=False) or entry.name.startswith("."):
                     continue
-                if entry.name in type_map:  # skip our own target folders
+                if entry.name in type_map:                               
                     continue
 
                 ext = Path(entry.name).suffix.lower()
@@ -759,10 +705,8 @@ def organize_desktop() -> str:
     except OSError as e:
         return f"Could not organize desktop: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# File / folder information
-# ----------------------------------------------------------------------
 def get_file_info(path: str, name: str = "") -> str:
     """
     Returns detailed metadata: type, size, creation/modification dates,
@@ -792,10 +736,8 @@ def get_file_info(path: str, name: str = "") -> str:
     except OSError as e:
         return f"Could not get file info: {e}"
 
+                                                                        
 
-# ----------------------------------------------------------------------
-# Main Controller – EXACT SAME SIGNATURE AS BEFORE
-# ----------------------------------------------------------------------
 def file_controller(
     parameters: dict = None,
     response=None,
@@ -815,12 +757,11 @@ def file_controller(
     path = params.get("path", "desktop")
     name = params.get("name", "")
 
-    # Logging via player if available (non‑blocking)
     if player and hasattr(player, "write_log"):
         player.write_log(f"[file] {action} {name or path}")
 
     try:
-        # -----------------------------------------------------------------
+                                                                           
         if action == "list":
             show_hidden = params.get("show_hidden", False)
             return list_files(path, show_hidden=show_hidden)

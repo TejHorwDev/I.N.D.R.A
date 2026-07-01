@@ -11,8 +11,7 @@ def spotify_controller(parameters: dict, player=None) -> str:
         return "No search query provided for Spotify."
         
     encoded_query = urllib.parse.quote(query)
-    
-    # Spotify URI format for searching
+
     spotify_uri = f"spotify:search:{encoded_query}"
     
     try:
