@@ -152,7 +152,7 @@ python main.py
 
 ## 📜 License
 
-This project is open for personal and educational use. Feel free to fork and build on it.
+2026 INDRA COPORATION RIGHT RESERVED
 
 <br/>
 
